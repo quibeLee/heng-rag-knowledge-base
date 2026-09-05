@@ -11,6 +11,7 @@ from alembic import context
 """ Alembic 配置文件 """
 from app.core.config import settings
 from app.db.base import Base
+from app.db import models  # noqa: F401  让 autogenerate 能扫到所有 ORM 模型
 
 config = context.config
 # 统一从.env取连接串
@@ -19,7 +20,7 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = None
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
