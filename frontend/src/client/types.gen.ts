@@ -5,6 +5,219 @@ export type ClientOptions = {
 };
 
 /**
+ * Body_uploadDocument
+ */
+export type BodyUploadDocument = {
+    /**
+     * File
+     *
+     * 待上传文档（PDF / DOCX / Markdown / HTML）
+     */
+    file: Blob | File;
+};
+
+/**
+ * DocumentChunkDetail
+ *
+ * chunk 详情：返回完整 content。
+ */
+export type DocumentChunkDetail = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Chunk Index
+     */
+    chunk_index: number;
+    /**
+     * Page No
+     */
+    page_no?: number | null;
+    /**
+     * Section Path
+     */
+    section_path?: string | null;
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Char Count
+     */
+    char_count: number;
+    /**
+     * Chunk Hash
+     */
+    chunk_hash: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * DocumentChunkListResponse
+ */
+export type DocumentChunkListResponse = {
+    /**
+     * Items
+     */
+    items: Array<DocumentChunkRead>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    stats?: DocumentChunkStats | null;
+};
+
+/**
+ * DocumentChunkRead
+ *
+ * chunk 列表项。content_excerpt 已在 API 层截断到固定长度。
+ */
+export type DocumentChunkRead = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Chunk Index
+     */
+    chunk_index: number;
+    /**
+     * Page No
+     */
+    page_no?: number | null;
+    /**
+     * Section Path
+     */
+    section_path?: string | null;
+    /**
+     * Content Excerpt
+     */
+    content_excerpt: string;
+    /**
+     * Char Count
+     */
+    char_count: number;
+    /**
+     * Chunk Hash
+     */
+    chunk_hash: string;
+};
+
+/**
+ * DocumentChunkStats
+ *
+ * 切分统计：直观看到 chunk_size / overlap 配置的实际效果。
+ */
+export type DocumentChunkStats = {
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Avg Length
+     */
+    avg_length: number;
+    /**
+     * Min Length
+     */
+    min_length: number;
+    /**
+     * Max Length
+     */
+    max_length: number;
+};
+
+/**
+ * DocumentListResponse
+ */
+export type DocumentListResponse = {
+    /**
+     * Items
+     */
+    items: Array<DocumentRead>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+};
+
+/**
+ * DocumentRead
+ */
+export type DocumentRead = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * File Hash
+     */
+    file_hash: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+    /**
+     * Size
+     */
+    size: number;
+    /**
+     * Status
+     */
+    status: 'uploading' | 'parsing' | 'indexing' | 'ready' | 'failed';
+    /**
+     * Error Message
+     */
+    error_message?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * HTTPValidationError
+ */
+export type HttpValidationError = {
+    /**
+     * Detail
+     */
+    detail?: Array<ValidationError>;
+};
+
+/**
  * HealthStatus
  */
 export type HealthStatus = {
@@ -16,6 +229,34 @@ export type HealthStatus = {
      * Detail
      */
     detail?: string | null;
+};
+
+/**
+ * ValidationError
+ */
+export type ValidationError = {
+    /**
+     * Location
+     */
+    loc: Array<string | number>;
+    /**
+     * Message
+     */
+    msg: string;
+    /**
+     * Error Type
+     */
+    type: string;
+    /**
+     * Input
+     */
+    input?: unknown;
+    /**
+     * Context
+     */
+    ctx?: {
+        [key: string]: unknown;
+    };
 };
 
 export type HealthAppData = {
@@ -65,3 +306,266 @@ export type HealthCosResponses = {
 };
 
 export type HealthCosResponse = HealthCosResponses[keyof HealthCosResponses];
+
+export type ListDocumentsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+        /**
+         * Status
+         *
+         * 按文档状态筛选
+         */
+        status?: 'uploading' | 'parsing' | 'indexing' | 'ready' | 'failed' | null;
+    };
+    url: '/api/documents';
+};
+
+export type ListDocumentsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListDocumentsError = ListDocumentsErrors[keyof ListDocumentsErrors];
+
+export type ListDocumentsResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentListResponse;
+};
+
+export type ListDocumentsResponse = ListDocumentsResponses[keyof ListDocumentsResponses];
+
+export type UploadDocumentData = {
+    body: BodyUploadDocument;
+    path?: never;
+    query?: never;
+    url: '/api/documents';
+};
+
+export type UploadDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadDocumentError = UploadDocumentErrors[keyof UploadDocumentErrors];
+
+export type UploadDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    201: DocumentRead;
+};
+
+export type UploadDocumentResponse = UploadDocumentResponses[keyof UploadDocumentResponses];
+
+export type DeleteDocumentData = {
+    body?: never;
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/documents/{document_id}';
+};
+
+export type DeleteDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteDocumentError = DeleteDocumentErrors[keyof DeleteDocumentErrors];
+
+export type DeleteDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteDocumentResponse = DeleteDocumentResponses[keyof DeleteDocumentResponses];
+
+export type GetDocumentData = {
+    body?: never;
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/documents/{document_id}';
+};
+
+export type GetDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDocumentError = GetDocumentErrors[keyof GetDocumentErrors];
+
+export type GetDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentRead;
+};
+
+export type GetDocumentResponse = GetDocumentResponses[keyof GetDocumentResponses];
+
+export type RetryDocumentData = {
+    body?: never;
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/documents/{document_id}/retry';
+};
+
+export type RetryDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RetryDocumentError = RetryDocumentErrors[keyof RetryDocumentErrors];
+
+export type RetryDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentRead;
+};
+
+export type RetryDocumentResponse = RetryDocumentResponses[keyof RetryDocumentResponses];
+
+export type DownloadDocumentData = {
+    body?: never;
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: {
+        /**
+         * Download
+         *
+         * 1=强制下载, 0=尝试内联预览
+         */
+        download?: number;
+    };
+    url: '/api/documents/{document_id}/file';
+};
+
+export type DownloadDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DownloadDocumentError = DownloadDocumentErrors[keyof DownloadDocumentErrors];
+
+export type DownloadDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListDocumentChunksData = {
+    body?: never;
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
+    url: '/api/documents/{document_id}/chunks';
+};
+
+export type ListDocumentChunksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListDocumentChunksError = ListDocumentChunksErrors[keyof ListDocumentChunksErrors];
+
+export type ListDocumentChunksResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentChunkListResponse;
+};
+
+export type ListDocumentChunksResponse = ListDocumentChunksResponses[keyof ListDocumentChunksResponses];
+
+export type GetDocumentChunkData = {
+    body?: never;
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: string;
+        /**
+         * Chunk Id
+         */
+        chunk_id: string;
+    };
+    query?: never;
+    url: '/api/documents/{document_id}/chunks/{chunk_id}';
+};
+
+export type GetDocumentChunkErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDocumentChunkError = GetDocumentChunkErrors[keyof GetDocumentChunkErrors];
+
+export type GetDocumentChunkResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentChunkDetail;
+};
+
+export type GetDocumentChunkResponse = GetDocumentChunkResponses[keyof GetDocumentChunkResponses];
