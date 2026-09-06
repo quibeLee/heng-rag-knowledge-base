@@ -5,6 +5,48 @@ export type ClientOptions = {
 };
 
 /**
+ * AgentStep
+ *
+ * Agentic RAG 单轮决策 + 观察快照。
+ * plan_retrieval 先填决策字段（round / action / reason / route / query），
+ * retrieve 跑完后 observe_context 回填观察字段（retrieved_count / top_score / sufficient）。
+ */
+export type AgentStep = {
+    /**
+     * Round
+     */
+    round: number;
+    /**
+     * Action
+     */
+    action: 'initial' | 'proceed' | 'rewrite_query' | 'switch_route' | 'refuse';
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Route
+     */
+    route: 'original' | 'rewrite' | 'hyde' | 'multi_query';
+    /**
+     * Query
+     */
+    query: string;
+    /**
+     * Retrieved Count
+     */
+    retrieved_count?: number | null;
+    /**
+     * Top Score
+     */
+    top_score?: number | null;
+    /**
+     * Sufficient
+     */
+    sufficient?: boolean | null;
+};
+
+/**
  * Body_uploadDocument
  */
 export type BodyUploadDocument = {
@@ -349,6 +391,10 @@ export type MessageRead = {
      */
     citations?: Array<CitationRead>;
     query_route?: QueryRouteRead | null;
+    /**
+     * Agent Steps
+     */
+    agent_steps?: Array<AgentStep> | null;
 };
 
 /**

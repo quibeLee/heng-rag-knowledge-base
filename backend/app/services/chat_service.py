@@ -10,16 +10,12 @@ from app.db.repositories.citation_repo import AnswerCitationRepository
 from app.db.repositories.conversation_repo import ConversationRepository
 from app.db.session import AsyncSessionLocal
 from app.retrieval.vector_retriever import RetrievedChunk
-from app.workflows.nodes import (
-    load_context,
-    normalize_query,
-    retrieve,
-    route_query,
-    stream_generate,
-)
+from app.workflows.graph import get_rag_graph
+from app.workflows.nodes import load_context, stream_generate
 from app.workflows.rag_state import RAGState
 
 logger = get_logger(__name__)
+
 
 def _build_query_route_payload(state: RAGState) -> dict:
     """SSE / metadata 共用的 query_route 载荷格式。
@@ -32,6 +28,7 @@ def _build_query_route_payload(state: RAGState) -> dict:
         "hyde_answer": state.get("hyde_answer"),
         "multi_queries": state.get("multi_queries"),
     }
+
 
 def _serialize_citation(chunk: RetrievedChunk, ordinal: int) -> dict:
     """citations SSE 事件载荷格式（与前端约定一致）。
@@ -100,11 +97,14 @@ class ChatService:
                     "question": question,
                 }
 
-                # 1. 加载上下文（仅历史消息，本轮 user 此刻尚未入库）+ 改写查询 + 路由查询
+                # 1. 加载上下文（仅历史消息，本轮 user 此刻尚未入库）。
+                # load_context 是唯一需要 DB session 的节点，由 service 先填好再交给图。
                 state.update(await load_context(state, session))
-                state.update(await normalize_query(state))
-                state.update(await route_query(state))
-                # 2. user 消息落库
+
+                # 2. 跑 RAG 子图：normalize_query → route_query → 检索决策循环
+                final_state = await get_rag_graph().ainvoke(state)
+                state.update(final_state)  # type: ignore[arg-type]
+                # 3. user 消息落库
                 await self._persist_user_message(state, session)
 
                 yield {
@@ -112,25 +112,36 @@ class ChatService:
                     "data": {"user_message_id": str(state["user_message_id"])},
                 }
 
-                # 3. 把 query 路由结果推给前端调试面板（始终发送，前端按 route 选择渲染）
+                # 4. 把 query 路由结果推给前端调试面板（始终发送，前端按 route 选择渲染）
                 yield {
                     "event": "query_route",
                     "data": _build_query_route_payload(state),
                 }
+                yield {
+                    "event": "agent_steps",
+                    "data": {"steps": _serialize_agent_steps(state)},
+                }
 
-                # 4. retrieve（含拒答判定）→ 先把引用发给前端，让参考资料面板立刻可见
-                state.update(await retrieve(state))
-
-                citations_payload = [
-                    _serialize_citation(c, ordinal=i)
-                    for i, c in enumerate(state.get("retrieved_chunks", []), start=1)
-                ]
+                # 5. retrieve（含拒答判定）→ 先把引用发给前端，让参考资料面板立刻可见
+                # 拒答路径下不下发 citations，retrieved_chunks 可能还残留 agent 循环
+                # 中途某一轮的候选（被 observe_context 判为不足），但语义上既然已经拒答，
+                # 前端就不该再展示这些参考资料
+                citations_payload = (
+                    []
+                    if state.get("refused")
+                    else [
+                        _serialize_citation(c, ordinal=i)
+                        for i, c in enumerate(
+                            state.get("retrieved_chunks", []), start=1
+                        )
+                    ]
+                )
                 yield {
                     "event": "citations",
                     "data": {"citations": citations_payload},
                 }
 
-                # 5. 生成：拒答直接走拒答文案；否则逐 token 流式
+                # 6. 生成：拒答直接走拒答文案；否则逐 token 流式
                 if state.get("refused"):
                     yield {
                         "event": "token",
@@ -143,7 +154,7 @@ class ChatService:
                         yield {"event": "token", "data": {"delta": delta}}
                     state["answer"] = "".join(answer_parts)
 
-                # 6. assistant 消息 + citations 同事务落库（保证两者原子）
+                # 7. assistant 消息 + citations 同事务落库（保证两者原子）
                 await self._persist_assistant_message(state, session)
 
                 yield {
@@ -196,6 +207,7 @@ class ChatService:
             extra_metadata={
                 "refused": bool(state.get("refused")),
                 "query_route": _build_query_route_payload(state),
+                "agent_steps": _serialize_agent_steps(state),
             },
         )
         await conv_repo.add_messages([assistant_msg])
@@ -220,6 +232,15 @@ class ChatService:
 
         await session.commit()
         state["assistant_message_id"] = assistant_msg.id
+
+
+def _serialize_agent_steps(state: RAGState) -> list[dict]:
+    """SSE / metadata 共用的 agent_steps 载荷格式。
+    state 内字段全部用原生 Python 类型，直接 JSON 序列化即可；这里做一层显式拷贝
+    避免后续节点继续追加时影响已发出的事件 / 已持久化的 metadata。
+    """
+    return [dict(step) for step in state.get("agent_steps", [])]
+
 
 def _build_retrieval_meta(chunk: RetrievedChunk) -> dict:
     """混合检索调试元数据"""
