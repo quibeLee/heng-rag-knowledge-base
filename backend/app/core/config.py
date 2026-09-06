@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     retrieval_min_score: float = 0.6
     # 多轮窗口：load_context 节点取最近多少轮塞进 prompt
     chat_history_window: int = 5
+    # 关掉后 route_query 节点强制走 original，方便对比有/无路由的效果
+    query_route_enabled: bool = True
+    # Multi-Query 策略生成的子查询数量，过大会增加 embedding 成本
+    multi_query_count: int = 3
 
     @property
     def cors_origin_list(self) -> list[str]:

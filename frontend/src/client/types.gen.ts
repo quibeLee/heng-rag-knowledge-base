@@ -347,6 +347,35 @@ export type MessageRead = {
      * Citations
      */
     citations?: Array<CitationRead>;
+    query_route?: QueryRouteRead | null;
+};
+
+/**
+ * QueryRouteRead
+ *
+ * Query 优化的调试快照。仅 assistant 消息会带，前端用于渲染调试面板。
+ */
+export type QueryRouteRead = {
+    /**
+     * Route
+     */
+    route: 'original' | 'rewrite' | 'hyde' | 'multi_query';
+    /**
+     * Query
+     */
+    query: string;
+    /**
+     * Rewritten Query
+     */
+    rewritten_query?: string | null;
+    /**
+     * Hyde Answer
+     */
+    hyde_answer?: string | null;
+    /**
+     * Multi Queries
+     */
+    multi_queries?: Array<string> | null;
 };
 
 /**

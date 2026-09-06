@@ -23,6 +23,7 @@ _SYSTEM_PROMPT = """你是企业知识库助手，必须严格遵守以下规则
 """
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
 RAG_ANSWER_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", _SYSTEM_PROMPT),
@@ -34,6 +35,8 @@ RAG_ANSWER_PROMPT = ChatPromptTemplate.from_messages(
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from app.db.models import Message, MessageRole
 from app.retrieval.vector_retriever import RetrievedChunk
+
+
 def format_context(chunks: list[RetrievedChunk]) -> str:
     """把检索结果拼成给 LLM 的【参考资料】文本。
     用「片段 N」而非「来源：xxx」做强标记，避免 LLM 把 [N] 误解为
@@ -50,6 +53,8 @@ def format_context(chunks: list[RetrievedChunk]) -> str:
             meta += f"，章节：{chunk.section_path}"
         parts.append(f"【片段 {index}】（{meta}）\n{chunk.content}")
     return "\n\n---\n\n".join(parts)
+
+
 def history_to_messages(history: list[Message]) -> list[BaseMessage]:
     """把数据库 Message 转成 langchain BaseMessage，用于塞进 prompt。"""
     messages: list[BaseMessage] = []
@@ -61,10 +66,12 @@ def history_to_messages(history: list[Message]) -> list[BaseMessage]:
         elif msg.role == MessageRole.SYSTEM:
             messages.append(SystemMessage(content=msg.content))
     return messages
+
+
 def build_answer_messages(
-    question: str,
-    chunks: list[RetrievedChunk],
-    history: list[Message],
+        question: str,
+        chunks: list[RetrievedChunk],
+        history: list[Message],
 ) -> list[BaseMessage]:
     """组装最终送给 LLM 的 messages 列表。"""
     prompt_value = RAG_ANSWER_PROMPT.invoke(
@@ -75,5 +82,66 @@ def build_answer_messages(
         }
     )
     return list(prompt_value.to_messages())
+
+
 # 检索失败时的固定拒答文案，集中管理便于后续章节统一调整
 REFUSAL_ANSWER = "抱歉，知识库中没有找到与该问题相关的可靠依据。"
+
+_ROUTE_SYSTEM = """你是 RAG 系统的查询路由器，要把用户问题归到下列 4 种策略之一：
+- original：问题清晰、表达完整、用词具体（含专有名词 / 编号 / 实体），直接检索即可。
+- rewrite：问题存在指代("它"、"这个"、"那")、省略、口语化或表达不完整，需要改写成独立完整的问题。
+- hyde：问题抽象 / 开放式("什么是..."、"为什么..."、"如何理解..."），关键词稀疏，直接检索容易召回不到。
+- multi_query：问题包含多个角度、多个并列子问题，或者一个角度难以一次召回全（如"对比 A 和 B"、"X 的优缺点"）。
+只输出一个英文小写的 route 名称，不要加任何解释、引号或标点。"""
+_ROUTE_HUMAN = "{question}"
+QUERY_ROUTE_PROMPT = ChatPromptTemplate.from_messages(
+    [("system", _ROUTE_SYSTEM), ("human", _ROUTE_HUMAN)]
+)
+
+_REWRITE_SYSTEM = """你是一个查询改写助手。把用户问题改写成一个**独立完整**的检索查询：
+- 消解指代("它"、"这个"、"那")和省略，补齐缺失主语 / 宾语。
+- 把口语化表达改成书面、客观、具体的描述。
+- 不要扩写、不要解释、不要回答问题。
+- 输出**单行**改写后的问题，不要加引号或编号。"""
+QUERY_REWRITE_PROMPT = ChatPromptTemplate.from_messages(
+    [("system", _REWRITE_SYSTEM), ("human", "{question}")]
+)
+
+_HYDE_SYSTEM = """你是一个 HyDE（Hypothetical Document Embeddings）助手。请基于一般领域常识，
+写一段**假设性的回答**用于向量召回——不需要真实，但要包含问题相关的关键词、术语和概念。
+要求：
+- 长度 80-200 字之间。
+- 用陈述句和具体名词，多覆盖该问题相关的概念。
+- 不要写"我认为"、"可能"、"假设"之类的虚词。
+- 不要表达"无法回答"——HyDE 的目的就是制造可用于嵌入的稠密文本。
+- 直接输出回答正文，不加标题、不加引号。"""
+HYDE_PROMPT = ChatPromptTemplate.from_messages(
+    [("system", _HYDE_SYSTEM), ("human", "{question}")]
+)
+
+_MULTI_QUERY_SYSTEM = """你是一个查询扩展助手。请把用户问题改写成 {n} 个**不同角度**的子查询，
+用于多路向量召回，提高覆盖率。
+要求：
+- 每个子查询独立、完整、可单独检索。
+- 子查询之间在角度 / 用词 / 粒度上互相错开，不要只是同义词替换。
+- 每行一个子查询，**不要**编号、不要前缀、不要解释。
+- 输出 {n} 行，不多不少。"""
+MULTI_QUERY_PROMPT = ChatPromptTemplate.from_messages(
+    [("system", _MULTI_QUERY_SYSTEM), ("human", "{question}")]
+)
+
+
+def build_route_messages(question: str) -> list[BaseMessage]:
+    return list(QUERY_ROUTE_PROMPT.invoke({"question": question}).to_messages())
+
+
+def build_rewrite_messages(question: str) -> list[BaseMessage]:
+    return list(QUERY_REWRITE_PROMPT.invoke({"question": question}).to_messages())
+
+
+def build_hyde_messages(question: str) -> list[BaseMessage]:
+    return list(HYDE_PROMPT.invoke({"question": question}).to_messages())
+
+
+def build_multi_query_messages(question: str, n: int) -> list[BaseMessage]:
+    return list(MULTI_QUERY_PROMPT.invoke({"question": question, "n": n}).to_messages())

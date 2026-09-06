@@ -15,10 +15,11 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {createConversation, getConversation} from '@/client/sdk.gen'
-import type {CitationRead, MessageRead} from '@/client/types.gen'
+import type {CitationRead, MessageRead, QueryRouteRead} from '@/client/types.gen'
 import {streamChat, type ChatStreamEvent} from '@/api/chatStream'
 import {gfmComponents} from '@/components/markdownComponents'
 import {CitationList, type CitationListHandle} from '@/components/CitationList'
+import {QueryRoutePanel} from '@/components/QueryRoutePanel'
 import {formatApiError} from '@/utils/errors'
 
 const {Title, Paragraph, Text} = Typography
@@ -31,6 +32,7 @@ interface UiMessage {
     role: 'user' | 'assistant'
     content: string
     citations: CitationRead[]
+    queryRoute?: QueryRouteRead | null
     status?: AssistantStatus
     error?: string | null
 }
@@ -41,6 +43,7 @@ function fromServerMessage(m: MessageRead): UiMessage {
         role: m.role === 'assistant' ? 'assistant' : 'user',
         content: m.content,
         citations: m.citations ?? [],
+        queryRoute: m.query_route ?? null,
         status: 'done',
     }
 }
@@ -150,6 +153,9 @@ export function ChatPage() {
                 onEvent: (event: ChatStreamEvent) => {
                     switch (event.type) {
                         case 'start':
+                            break
+                        case 'query_route':
+                            updateAssistant((prev) => ({...prev, queryRoute: event.queryRoute}))
                             break
                         case 'citations':
                             updateAssistant((prev) => ({...prev, citations: event.citations}))
@@ -336,6 +342,9 @@ function MessageBubble({message}: MessageBubbleProps) {
                     <Text type="secondary">
                         <Spin size="small"/> 正在思考...
                     </Text>
+                ) : null}
+                {!isUser && message.queryRoute ? (
+                    <QueryRoutePanel queryRoute={message.queryRoute} />
                 ) : null}
                 {!isUser && message.citations.length > 0 ? (
                     <CitationList ref={citationRef} citations={message.citations} messageId={message.id}/>
