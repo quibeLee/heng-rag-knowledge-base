@@ -1,13 +1,10 @@
-import { Collapse, Tag, Typography } from 'antd'
-import type { AgentStep } from '@/client/types.gen'
-const { Text, Paragraph } = Typography
-const ACTION_META: Record<AgentStep['action'], { color: string; label: string }> = {
-  initial: { color: 'default', label: '初始检索' },
-  proceed: { color: 'green', label: '继续生成' },
-  rewrite_query: { color: 'blue', label: '改写 Query' },
-  switch_route: { color: 'purple', label: '切换策略' },
-  refuse: { color: 'red', label: '提前拒答' },
-}
+import {useState} from 'react'
+import {Button, Collapse, Tag, Typography} from 'antd'
+import {PartitionOutlined} from '@ant-design/icons'
+import type {AgentStep} from '@/client/types.gen'
+import {AgentGraphModal} from '@/components/AgentGraphModal'
+import {ACTION_META} from '@/utils/agentFlow'
+const {Text, Paragraph} = Typography
 interface AgentStepsPanelProps {
   steps: AgentStep[]
 }
@@ -18,11 +15,13 @@ interface AgentStepsPanelProps {
  * 与 QueryRoutePanel 在 route=original 时隐藏面板的约定保持一致。
  */
 export function AgentStepsPanel({ steps }: AgentStepsPanelProps) {
+  const [flowOpen, setFlowOpen] = useState(false)
   if (steps.length === 0) return null
   if (steps.length === 1 && steps[0]?.action === 'initial') return null
   const rounds = steps.length
   const finalStep = steps[steps.length - 1]
   return (
+    <>
     <Collapse
       size="small"
       ghost
@@ -38,6 +37,18 @@ export function AgentStepsPanel({ steps }: AgentStepsPanelProps) {
               <Text type="secondary">
                 最终动作：{finalStep ? ACTION_META[finalStep.action].label : '-'}
               </Text>
+              <Button
+                type="link"
+                size="small"
+                icon={<PartitionOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setFlowOpen(true)
+                }}
+                style={{ marginInlineStart: 8, padding: 0, height: 'auto' }}
+              >
+                本次流程图
+              </Button>
             </span>
           ),
           children: (
@@ -52,6 +63,8 @@ export function AgentStepsPanel({ steps }: AgentStepsPanelProps) {
         },
       ]}
     />
+    <AgentGraphModal open={flowOpen} onClose={() => setFlowOpen(false)} steps={steps} />
+    </>
   )
 }
 

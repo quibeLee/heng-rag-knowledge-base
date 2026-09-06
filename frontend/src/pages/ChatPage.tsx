@@ -103,6 +103,14 @@ export function ChatPage() {
         const history = (historyQuery.data?.messages ?? []).map(fromServerMessage)
         return [...history, ...pendingMessages]
     }, [historyQuery.data, pendingMessages])
+    // 最近一条带 Agent 轨迹的 assistant 消息：顶部"流程图"按钮展示本次实际执行路径
+    const latestAgentSteps = useMemo(() => {
+        for (let i = allMessages.length - 1; i >= 0; i--) {
+            const msg = allMessages[i]
+            if (msg.role === 'assistant' && msg.agentSteps?.length) return msg.agentSteps
+        }
+        return null
+    }, [allMessages])
     // 自动滚到底部
     useEffect(() => {
         scrollRef.current?.scrollTo({top: scrollRef.current.scrollHeight, behavior: 'smooth'})
@@ -220,7 +228,7 @@ export function ChatPage() {
                     </Button>
                 </Space>
             </Space>
-            <AgentGraphModal open={graphModalOpen} onClose={() => setGraphModalOpen(false)}/>
+            <AgentGraphModal open={graphModalOpen} onClose={() => setGraphModalOpen(false)} steps={latestAgentSteps}/>
             <div
                 ref={scrollRef}
                 style={{
