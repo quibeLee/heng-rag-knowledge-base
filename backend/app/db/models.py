@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
+    Computed,
     DateTime,
     ForeignKey,
     Integer,
@@ -11,7 +12,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB,TSVECTOR, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.config import settings
 from app.db.base import Base
@@ -81,6 +82,14 @@ class DocumentChunk(Base):
     chunk_hash: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     extra_metadata: Mapped[dict] = mapped_column(
         "metadata", JSONB, nullable=False, default=dict
+    )
+    # 中文全文检索索引列。
+    # GENERATED ALWAYS 由 PostgreSQL 根据 content 自动维护，应用层不写、只读。
+    # SQLAlchemy 看到 Computed(persisted=True) 会自动从 INSERT/UPDATE 中排除该列。
+    content_tsv: Mapped[str] = mapped_column(
+        TSVECTOR,
+        Computed("to_tsvector('chinese_zh', content)", persisted=True),
+        nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -168,3 +177,6 @@ class AnswerCitation(Base):
     page_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
     quote: Mapped[str] = mapped_column(Text, nullable=False)
     message: Mapped[Message] = relationship(back_populates="citations")
+    # 混合检索调试元数据：sources / vector_rank / keyword_rank / *_score / rrf_score
+    # 用 JSONB 而非拆列，后续 reranker会继续往里加字段，schema 不稳定时更友好
+    retrieval_meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

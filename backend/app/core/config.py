@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     cos_secret_key: str = ""
     cos_region: str = "ap-guangzhou"
     cos_bucket: str = ""
+
     # ===== Embedding（DashScope OpenAI 兼容协议）=====
     embedding_api_key: str = ""
     embedding_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -39,15 +40,18 @@ class Settings(BaseSettings):
     # 维度需与 alembic 迁移中 Vector(N) 保持一致；改维度需要重建表
     embedding_dim: int = 1024
     embedding_batch_size: int = 10
+
     # ===== 文档上传与切分 =====
     upload_max_size_mb: int = 50
     chunk_size: int = 600
     chunk_overlap: int = 60
+
     # ===== Chat 模型（DashScope OpenAI 兼容协议）=====
     # 默认与 embedding 同 base_url
     chat_api_key: str = ""
     chat_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     chat_model: str = "qwen-plus"
+
     # ===== 检索与问答 =====
     # 检索 Top-K：交给 LLM 的候选 chunk 数量
     retrieval_top_k: int = 5
@@ -60,6 +64,13 @@ class Settings(BaseSettings):
     query_route_enabled: bool = True
     # Multi-Query 策略生成的子查询数量，过大会增加 embedding 成本
     multi_query_count: int = 3
+
+    # ===== 混合检索 =====
+    # 每路（向量 / 关键词）召回数量；设计文档建议候选 20-50
+    # 取 20 兼顾召回率与 RRF 融合开销
+    retrieval_recall_top_k: int = 20
+    # RRF 平滑常数，业界一般用 60；越小越偏向高排名条目
+    rrf_k: int = 60
 
     @property
     def cors_origin_list(self) -> list[str]:

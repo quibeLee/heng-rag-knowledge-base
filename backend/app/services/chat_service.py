@@ -47,6 +47,7 @@ def _serialize_citation(chunk: RetrievedChunk, ordinal: int) -> dict:
         "section_path": chunk.section_path,
         "score": round(chunk.score, 4),
         "quote": chunk.content,
+        "retrieval_meta": _build_retrieval_meta(chunk),
     }
 
 
@@ -118,7 +119,7 @@ class ChatService:
                 }
 
                 # 4. retrieve（含拒答判定）→ 先把引用发给前端，让参考资料面板立刻可见
-                state.update(await retrieve(state, session))
+                state.update(await retrieve(state))
 
                 citations_payload = [
                     _serialize_citation(c, ordinal=i)
@@ -209,6 +210,7 @@ class ChatService:
                     document_name=chunk.document_name,
                     page_no=chunk.page_no,
                     quote=chunk.content,
+                    retrieval_meta=_build_retrieval_meta(chunk),
                 )
                 for ordinal, chunk in enumerate(
                     state.get("retrieved_chunks", []), start=1
@@ -218,3 +220,20 @@ class ChatService:
 
         await session.commit()
         state["assistant_message_id"] = assistant_msg.id
+
+def _build_retrieval_meta(chunk: RetrievedChunk) -> dict:
+    """混合检索调试元数据"""
+    return {
+        "sources": list(chunk.sources),
+        "vector_rank": chunk.vector_rank,
+        "vector_score": (
+            round(chunk.vector_score, 4) if chunk.vector_score is not None else None
+        ),
+        "keyword_rank": chunk.keyword_rank,
+        "keyword_score": (
+            round(chunk.keyword_score, 4) if chunk.keyword_score is not None else None
+        ),
+        "rrf_score": (
+            round(chunk.rrf_score, 6) if chunk.rrf_score is not None else None
+        ),
+    }

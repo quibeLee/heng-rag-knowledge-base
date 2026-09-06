@@ -61,6 +61,7 @@ export type CitationRead = {
      * Quote
      */
     quote: string;
+    retrieval_meta?: RetrievalMeta | null;
 };
 
 /**
@@ -376,6 +377,43 @@ export type QueryRouteRead = {
      * Multi Queries
      */
     multi_queries?: Array<string> | null;
+};
+
+/**
+ * RetrievalMeta
+ *
+ * 混合检索调试元数据。
+ * - sources：该 chunk 命中的检索路（vector / keyword），两路都命中即"混合"
+ * - *_rank：在该路召回结果中的名次（从 1 开始），用于复盘排序
+ * - vector_score：cosine similarity，绝对值有意义，做拒答阈值用
+ * - keyword_score：ts_rank，相对值，跨 query 不可比
+ * - rrf_score：两路融合分，仅在同一次检索内可比
+ */
+export type RetrievalMeta = {
+    /**
+     * Sources
+     */
+    sources?: Array<string>;
+    /**
+     * Vector Rank
+     */
+    vector_rank?: number | null;
+    /**
+     * Vector Score
+     */
+    vector_score?: number | null;
+    /**
+     * Keyword Rank
+     */
+    keyword_rank?: number | null;
+    /**
+     * Keyword Score
+     */
+    keyword_score?: number | null;
+    /**
+     * Rrf Score
+     */
+    rrf_score?: number | null;
 };
 
 /**

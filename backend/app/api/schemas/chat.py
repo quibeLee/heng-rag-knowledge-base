@@ -29,6 +29,22 @@ class ConversationRead(BaseModel):
     updated_at: datetime
 
 
+class RetrievalMeta(BaseModel):
+    """混合检索调试元数据。
+    - sources：该 chunk 命中的检索路（vector / keyword），两路都命中即"混合"
+    - *_rank：在该路召回结果中的名次（从 1 开始），用于复盘排序
+    - vector_score：cosine similarity，绝对值有意义，做拒答阈值用
+    - keyword_score：ts_rank，相对值，跨 query 不可比
+    - rrf_score：两路融合分，仅在同一次检索内可比
+    """
+    sources: list[str] = Field(default_factory=list)
+    vector_rank: int | None = None
+    vector_score: float | None = None
+    keyword_rank: int | None = None
+    keyword_score: float | None = None
+    rrf_score: float | None = None
+
+
 class CitationRead(BaseModel):
     """assistant 消息引用的 chunk 快照。
     document_id / chunk_id 可能为空（原文档 / chunk 已被删除）。
@@ -42,6 +58,8 @@ class CitationRead(BaseModel):
     document_name: str
     page_no: int | None = None
     quote: str
+    # 混合检索调试元数据；
+    retrieval_meta: RetrievalMeta | None = None
 
     @classmethod
     def from_orm(cls, citation) -> "CitationRead":  # type: ignore[no-untyped-def]
@@ -53,7 +71,18 @@ class CitationRead(BaseModel):
             document_name=citation.document_name,
             page_no=citation.page_no,
             quote=citation.quote,
+            retrieval_meta=_parse_retrieval_meta(citation.retrieval_meta),
         )
+
+
+def _parse_retrieval_meta(raw: dict | None) -> RetrievalMeta | None:
+    """历史消息没有 retrieval_meta，非法/缺失静默返回 None。"""
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return RetrievalMeta.model_validate(raw)
+    except Exception:
+        return None
 
 
 class MessageRead(BaseModel):
@@ -81,6 +110,7 @@ class MessageRead(BaseModel):
             else None,
         )
 
+
 def _parse_query_route(metadata: dict | None) -> QueryRouteRead | None:
     """从 messages.metadata 中提取 query_route 字段。
 
@@ -95,6 +125,7 @@ def _parse_query_route(metadata: dict | None) -> QueryRouteRead | None:
         return QueryRouteRead.model_validate(raw)
     except Exception:
         return None
+
 
 class ConversationDetail(BaseModel):
     """会话详情：会话本身 + 历史消息（含引用）。"""
