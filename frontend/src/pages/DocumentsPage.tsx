@@ -34,7 +34,7 @@ import {
 } from '@/utils/documentStatus'
 
 const {Title, Paragraph} = Typography
-const ACCEPTED = '.pdf,.docx,.md,.markdown,.html,.htm'
+const ACCEPTED = '.pdf,.docx,.pptx,.xlsx,.md,.markdown,.html,.htm'
 type StatusFilter = DocumentRead['status'] | 'all'
 const STATUS_OPTIONS: { label: string; value: StatusFilter }[] = [
     {label: '全部状态', value: 'all'},
@@ -204,7 +204,7 @@ export function DocumentsPage() {
         <div>
             <Title level={3}>文档管理</Title>
             <Paragraph type="secondary">
-                支持 PDF、DOCX、Markdown、HTML。上传后后台异步完成解析、切分、向量化与入库，状态会自动刷新。
+                支持 PDF、DOCX、PPTX、XLSX、Markdown、HTML。上传后后台异步完成解析、切分、向量化与入库，状态会自动刷新。
             </Paragraph>
             <Space style={{marginBottom: 16}} wrap>
                 <Upload {...uploadProps}>

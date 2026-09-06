@@ -15,10 +15,12 @@ from app.db.repositories.document_repo import DocumentRepository
 from app.ingestion.pipeline import ingest_document
 from app.storage.file_service import FileService, get_file_service
 
-# 受支持的 MIME 类型。Docling 还支持其他格式，本章先收敛为常见四种以便课件演示
+# 受支持的 MIME 类型。Docling 还支持其他格式，目前开放常见六种
 _ACCEPTED_MIME_TYPES: dict[str, str] = {
     "application/pdf": ".pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
     "text/markdown": ".md",
     "text/x-markdown": ".md",
     "text/html": ".html",
@@ -27,6 +29,8 @@ _ACCEPTED_MIME_TYPES: dict[str, str] = {
 _ACCEPTED_SUFFIXES: dict[str, str] = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".md": "text/markdown",
     ".markdown": "text/markdown",
     ".html": "text/html",
@@ -46,7 +50,7 @@ def _resolve_mime_and_suffix(file: UploadFile) -> tuple[str, str]:
         return mime, _ACCEPTED_MIME_TYPES[mime]
     raise ValidationError(
         f"不支持的文件类型：{file.filename}（{mime or '未知'}）。"
-        "当前仅支持 PDF、DOCX、Markdown、HTML"
+        "当前仅支持 PDF、DOCX、PPTX、XLSX、Markdown、HTML"
     )
 
 
