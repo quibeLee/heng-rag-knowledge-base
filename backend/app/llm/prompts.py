@@ -187,3 +187,60 @@ def build_agent_plan_messages(
             }
         ).to_messages()
     )
+
+# ============================================================================
+# 多轮上下文优化、答案校验 prompt
+# ============================================================================
+_CONTEXTUALIZE_SYSTEM = """你是一个多轮对话查询改写助手。请基于对话历史把用户当前问题改写成
+**独立完整、可单独检索**的问句：
+- 消解指代："它"、"这个"、"上面提到的..."、"刚才那个..."等
+- 补全省略：用户在追问场景里经常省略主语或宾语，需要从历史里把缺失成分补全
+- 不要回答问题，不要扩展含义，不要改变用户的真实意图
+- 不要加任何引号、编号、解释，只输出单行改写后的问句
+- 如果当前问题已经独立完整，直接原样输出
+【对话历史】
+{history}"""
+_CONTEXTUALIZE_HUMAN = "{question}"
+CONTEXTUALIZE_PROMPT = ChatPromptTemplate.from_messages(
+    [("system", _CONTEXTUALIZE_SYSTEM), ("human", _CONTEXTUALIZE_HUMAN)]
+)
+def build_contextualize_messages(question: str, history: str) -> list[BaseMessage]:
+    return list(
+        CONTEXTUALIZE_PROMPT.invoke(
+            {"question": question, "history": history}
+        ).to_messages()
+    )
+
+_VERIFY_ANSWER_SYSTEM = """你是一个 RAG 答案可信度校验员。请判断回答是否**完全被给定的参考片段支撑**：
+判定标准：
+- 答案中每个关键事实结论（数字、名称、规则、时间、条款）都必须能在某个片段原文中**直接找到**
+- 礼貌话、转折词、复述问题的句子不算关键结论，可忽略
+- 答案标了 [N] 引用编号的，要重点核对：N 号片段是否真的支撑这条结论
+- 出现"未在知识库中找到"等明确拒答文案时直接判 verified=true（拒答本身就是被允许的输出）
+判定结果：
+- verified=true：所有关键结论都被支撑
+- verified=false：存在编造、引用张冠李戴、或片段里完全没提到的事实
+输出**单行 JSON**，键固定为 verified / reason，reason 用一句话说清楚理由（中文）。
+示例：{{"verified": false, "reason": "答案提到差旅住宿 800 元，片段中只提到 600 元"}}"""
+_VERIFY_ANSWER_HUMAN = """【用户问题】
+{question}
+【参考片段】
+{chunks_text}
+【模型回答】
+{answer}
+请输出校验结果 JSON。"""
+VERIFY_ANSWER_PROMPT = ChatPromptTemplate.from_messages(
+    [("system", _VERIFY_ANSWER_SYSTEM), ("human", _VERIFY_ANSWER_HUMAN)]
+)
+def build_verify_answer_messages(
+    question: str, answer: str, chunks_text: str
+) -> list[BaseMessage]:
+    return list(
+        VERIFY_ANSWER_PROMPT.invoke(
+            {
+                "question": question,
+                "answer": answer,
+                "chunks_text": chunks_text,
+            }
+        ).to_messages()
+    )

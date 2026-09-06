@@ -30,6 +30,9 @@ class RetrievedChunk:
     keyword_rank: int | None = None
     keyword_score: float | None = None  # 原始 ts_rank（关键词路命中时填充）
     rrf_score: float | None = None
+    # reranker query-chunk 成对打分的相关度，越大越相关
+    # qwen3-rerank 输出 relevance_score ∈ [0, 1]
+    rerank_score: float | None = None
 
 
 class VectorRetriever:

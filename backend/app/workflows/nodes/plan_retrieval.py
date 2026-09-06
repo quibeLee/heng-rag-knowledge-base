@@ -1,6 +1,5 @@
 from app.core.config import settings
 from app.llm.agent_planner import get_agent_planner
-from app.llm.prompts import REFUSAL_ANSWER
 from app.llm.query_rewriter import get_query_rewriter
 from app.workflows.rag_state import QueryRoute, RAGState
 
@@ -23,7 +22,7 @@ async def plan_retrieval(state: RAGState) -> RAGState:
         return {"agent_steps": steps}
     # 后续轮：由 LLM planner 决定如何重试
     decision = await get_agent_planner().plan(
-        question=state["question"],
+        question=state["query"],
         current_route=current_route,
         current_query=current_query,
         previous_steps=steps,
@@ -45,7 +44,7 @@ async def plan_retrieval(state: RAGState) -> RAGState:
         # 真正切换：调 QueryRewriter 补齐目标路由对应字段，避免只换标签不换行为
         rewriter = get_query_rewriter()
         result = await rewriter.apply_route(
-            question=state["question"],
+            question=state["query"],
             route=decision.new_route,
             multi_query_count=settings.multi_query_count,
         )
@@ -66,9 +65,6 @@ async def plan_retrieval(state: RAGState) -> RAGState:
         }
     )
     update["agent_steps"] = steps
-    # refuse 时直接终止图：retrieve 不再跑，answer 也要在这里兜底，
-    # 否则 service 看到 refused=True 但 state["answer"] 缺失会发送空 token
-    if decision.action == "refuse":
-        update["refused"] = True
-        update["answer"] = REFUSAL_ANSWER
+    # refuse 路由：planner 决策走拒答时，由图边把控制权交给 refuse 节点统一塞文案，
+    # 避免 plan_retrieval / retrieve / judge_context 三处各自重复 REFUSAL_ANSWER
     return update

@@ -34,6 +34,16 @@ export interface ChatErrorEvent {
     code: string
     message: string
 }
+export interface ChatVerifyResultEvent {
+  type: 'verify_result'
+  verified: boolean
+  reason: string | null
+  /**
+   * verified=false 时后端给出的替换文本（统一拒答文案）。
+   * 前端按它整段覆盖流式出来的 answer，与 PRD"校验失败 → 拒答替换"对齐。
+   */
+  replacementAnswer: string | null
+}
 
 export type ChatStreamEvent =
     | ChatStartEvent
@@ -41,6 +51,7 @@ export type ChatStreamEvent =
     | ChatAgentStepsEvent
     | ChatCitationsEvent
     | ChatTokenEvent
+    | ChatVerifyResultEvent
     | ChatEndEvent
     | ChatErrorEvent
 
@@ -94,6 +105,13 @@ export async function streamChat({
                         break
                     case 'token':
                         onEvent({type: 'token', delta: data.delta ?? ''})
+                        break
+                    case 'verify_result':
+                        onEvent({
+                            type: 'verify_result',
+                            verified: Boolean(data.verified),
+                            reason: data.reason ?? null,
+                            replacementAnswer: data.replacementAnswer ?? null})
                         break
                     case 'message_end':
                         onEvent({

@@ -78,6 +78,29 @@ class Settings(BaseSettings):
     # 最大检索轮次（含首轮）。LLM 决策最多触发 max_rounds-1 次再检索，避免循环调用
     agent_max_rounds: int = 3
 
+    # ===== Reranker（DashScope qwen3-rerank）=====
+    # 关掉后 rerank 节点直接透传，作为有/无精排的对比开关
+    rerank_enabled: bool = True
+    # DashScope rerank 端点，不是标准 OpenAI API
+    rerank_base_url: str = (
+        "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
+    )
+    rerank_model: str = "qwen3-rerank"
+    # 留空时复用 chat_api_key（同一份 DashScope key，避免重复配置）
+    rerank_api_key: str = ""
+    # rerank Top1 相关度阈值；低于此值视为"上下文不足"由 judge_context 触发拒答
+    # qwen3-rerank 输出 relevance_score ∈ [0, 1]，0.3 是经验值
+    rerank_min_score: float = 0.3
+    # 请求超时（秒），rerank 是同步调用主链路，超时要短一点避免拖慢回答
+    rerank_timeout: float = 8.0
+    # ===== 答案校验=====
+    # 关掉后跳过 verify_answer 调用，方便对比有/无引用支撑校验的效果
+    verify_answer_enabled: bool = True
+
+    @property
+    def effective_rerank_api_key(self) -> str:
+        """rerank_api_key 留空时回落到 chat_api_key，二者本来就是同一份 DashScope key。"""
+        return self.rerank_api_key or self.chat_api_key
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

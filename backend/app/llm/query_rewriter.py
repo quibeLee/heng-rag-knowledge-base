@@ -1,8 +1,11 @@
 from dataclasses import dataclass
 from typing import get_args
+
 from app.core.logging import get_logger
+from app.db.models import Message, MessageRole
 from app.llm.models import get_chat_model
 from app.llm.prompts import (
+    build_contextualize_messages,
     build_hyde_messages,
     build_multi_query_messages,
     build_rewrite_messages,
@@ -111,6 +114,26 @@ class QueryRewriter:
             return QueryRouteResult(route="original", query=question)
         return await self.apply_route(question, route, multi_query_count)
 
+    async def contextualize(self, question: str, history: list[Message]) -> str:
+        """基于多轮历史把当前问题改写成独立完整问句。
+        消解"它/这个/上面提到的"等指代、补省略，让后续 route_query / retrieve
+        看到的 query 已经独立可检索。空历史直接回原问题；任何异常 / 改写为空 → 降级回原问题。
+        """
+        history_text = _format_history_text(history)
+        if not history_text:
+            return question
+        try:
+            messages = build_contextualize_messages(
+                question=question, history=history_text
+            )
+            response = await get_chat_model().ainvoke(messages)
+            rewritten = _extract_text(response.content).strip()
+            return rewritten or question
+        except Exception:
+            logger.exception(
+                "contextualize 调用失败，降级回原问题：question=%r", question
+            )
+            return question
 
 _rewriter: QueryRewriter | None = None
 
@@ -127,3 +150,20 @@ def _extract_text(content: str | list[str | dict]) -> str:
     if isinstance(content, str):
         return content
     return "".join(part.get("text", "") for part in content if isinstance(part, dict))
+
+_ROLE_LABEL: dict[MessageRole, str] = {
+    MessageRole.USER: "用户",
+    MessageRole.ASSISTANT: "助手",
+    MessageRole.SYSTEM: "系统",
+}
+def _format_history_text(history: list[Message]) -> str:
+    """把历史 Message 压成给 contextualize prompt 看的纯文本。
+    只取 user / assistant，过滤 system；空内容跳过，避免把空消息塞进 prompt 浪费 token。
+    """
+    lines: list[str] = []
+    for msg in history:
+        role_label = _ROLE_LABEL.get(msg.role)
+        if not role_label or not msg.content.strip():
+            continue
+        lines.append(f"{role_label}：{msg.content.strip()}")
+    return "\n".join(lines)

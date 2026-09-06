@@ -6,7 +6,7 @@ async def route_query(state: RAGState) -> RAGState:
         # 关闭路由：直接走原始查询，保留 normalize_query 透传的 state["query"]
         return {"route": "original"}
     result = await get_query_rewriter().optimize(
-        question=state["question"],
+        question=state["query"],
         multi_query_count=settings.multi_query_count,
     )
     # query 字段被显式覆盖：rewrite/hyde 路径下用改写文本去向量召回
