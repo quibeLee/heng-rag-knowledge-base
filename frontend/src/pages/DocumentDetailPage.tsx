@@ -51,6 +51,9 @@ import {
   isPdfMime,
 } from '@/utils/documentFile'
 
+import remarkGfm from 'remark-gfm'
+import { gfmComponents } from '@/components/markdownComponents'
+
 const { Title, Text, Paragraph } = Typography
 
 const CHUNK_PAGE_SIZE = 20
@@ -95,7 +98,7 @@ function MarkdownPreview({ url }: { url: string }) {
   if (content === null) return <Skeleton active />
   return (
     <div style={{ padding: 16, maxHeight: 600, overflow: 'auto' }}>
-      <ReactMarkdown>{content}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={gfmComponents}>{content}</ReactMarkdown>
     </div>
   )
 }
