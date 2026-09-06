@@ -343,6 +343,18 @@ export type DocumentRead = {
 };
 
 /**
+ * GraphMermaidRead
+ *
+ * LangGraph 图结构的 Mermaid 文本，前端用于渲染流程图。
+ */
+export type GraphMermaidRead = {
+    /**
+     * Mermaid
+     */
+    mermaid: string;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -883,3 +895,19 @@ export type StreamChatResponses = {
      */
     200: unknown;
 };
+
+export type GetAgentGraphMermaidData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/agent/graph/mermaid';
+};
+
+export type GetAgentGraphMermaidResponses = {
+    /**
+     * Successful Response
+     */
+    200: GraphMermaidRead;
+};
+
+export type GetAgentGraphMermaidResponse = GetAgentGraphMermaidResponses[keyof GetAgentGraphMermaidResponses];

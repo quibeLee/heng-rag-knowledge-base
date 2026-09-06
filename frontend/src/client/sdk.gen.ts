@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type ServerSentEventsResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateConversationData, CreateConversationErrors, CreateConversationResponses, DeleteDocumentData, DeleteDocumentErrors, DeleteDocumentResponses, DownloadDocumentData, DownloadDocumentErrors, DownloadDocumentResponses, GetConversationData, GetConversationErrors, GetConversationResponses, GetDocumentChunkData, GetDocumentChunkErrors, GetDocumentChunkResponses, GetDocumentData, GetDocumentErrors, GetDocumentResponses, HealthAppData, HealthAppResponses, HealthCosData, HealthCosResponses, HealthDbData, HealthDbResponses, ListDocumentChunksData, ListDocumentChunksErrors, ListDocumentChunksResponses, ListDocumentsData, ListDocumentsErrors, ListDocumentsResponses, RetryDocumentData, RetryDocumentErrors, RetryDocumentResponses, StreamChatData, StreamChatErrors, StreamChatResponses, UploadDocumentData, UploadDocumentErrors, UploadDocumentResponses } from './types.gen';
+import type { CreateConversationData, CreateConversationErrors, CreateConversationResponses, DeleteDocumentData, DeleteDocumentErrors, DeleteDocumentResponses, DownloadDocumentData, DownloadDocumentErrors, DownloadDocumentResponses, GetAgentGraphMermaidData, GetAgentGraphMermaidResponses, GetConversationData, GetConversationErrors, GetConversationResponses, GetDocumentChunkData, GetDocumentChunkErrors, GetDocumentChunkResponses, GetDocumentData, GetDocumentErrors, GetDocumentResponses, HealthAppData, HealthAppResponses, HealthCosData, HealthCosResponses, HealthDbData, HealthDbResponses, ListDocumentChunksData, ListDocumentChunksErrors, ListDocumentChunksResponses, ListDocumentsData, ListDocumentsErrors, ListDocumentsResponses, RetryDocumentData, RetryDocumentErrors, RetryDocumentResponses, StreamChatData, StreamChatErrors, StreamChatResponses, UploadDocumentData, UploadDocumentErrors, UploadDocumentResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -125,3 +125,10 @@ export const streamChat = <ThrowOnError extends boolean = false>(options: Option
         ...options.headers
     }
 });
+
+/**
+ * Get Agent Graph Mermaid
+ *
+ * 输出 Agentic RAG 图结构的 Mermaid 文本，用于直观分析流程。
+ */
+export const getAgentGraphMermaid = <ThrowOnError extends boolean = false>(options?: Options<GetAgentGraphMermaidData, ThrowOnError>): RequestResult<GetAgentGraphMermaidResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetAgentGraphMermaidResponses, unknown, ThrowOnError>({ url: '/api/agent/graph/mermaid', ...options });

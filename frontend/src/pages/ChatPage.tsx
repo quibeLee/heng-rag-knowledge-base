@@ -10,7 +10,7 @@ import {
     Typography,
     message as antdMessage,
 } from 'antd'
-import {PlusOutlined, RobotOutlined, SendOutlined, UserOutlined} from '@ant-design/icons'
+import {PartitionOutlined, PlusOutlined, RobotOutlined, SendOutlined, UserOutlined} from '@ant-design/icons'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -18,6 +18,7 @@ import {createConversation, getConversation} from '@/client/sdk.gen'
 import type { AgentStep, CitationRead, MessageRead, QueryRouteRead } from '@/client/types.gen'
 import {streamChat, type ChatStreamEvent} from '@/api/chatStream'
 import {AgentStepsPanel} from '@/components/AgentStepsPanel'
+import {AgentGraphModal} from '@/components/AgentGraphModal'
 import {gfmComponents} from '@/components/markdownComponents'
 import {CitationList, type CitationListHandle} from '@/components/CitationList'
 import {QueryRoutePanel} from '@/components/QueryRoutePanel'
@@ -60,6 +61,7 @@ export function ChatPage() {
     // 流式过程中的临时消息（只放在前端 state，结束后由历史接口回填正式 id）
     const [pendingMessages, setPendingMessages] = useState<UiMessage[]>([])
     const [isStreaming, setIsStreaming] = useState(false)
+    const [graphModalOpen, setGraphModalOpen] = useState(false)
     const abortRef = useRef<AbortController | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     // 创建会话：第一次进入页面 / 点"新建对话"时调用
@@ -209,10 +211,16 @@ export function ChatPage() {
                         基于已上传文档进行检索增强问答，引用来源可点击跳转原文档。
                     </Paragraph>
                 </div>
-                <Button icon={<PlusOutlined/>} onClick={handleNewConversation} disabled={isStreaming}>
-                    新建对话
-                </Button>
+                <Space>
+                    <Button icon={<PartitionOutlined/>} onClick={() => setGraphModalOpen(true)}>
+                        流程图
+                    </Button>
+                    <Button icon={<PlusOutlined/>} onClick={handleNewConversation} disabled={isStreaming}>
+                        新建对话
+                    </Button>
+                </Space>
             </Space>
+            <AgentGraphModal open={graphModalOpen} onClose={() => setGraphModalOpen(false)}/>
             <div
                 ref={scrollRef}
                 style={{
