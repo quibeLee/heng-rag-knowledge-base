@@ -236,7 +236,7 @@ class AnswerCitation(Base):
 
 
 class EvaluationRunStatus(str, Enum):
-    """评测 run 生命周期：BackgroundTasks 跑完前 RUNNING；正常结束 COMPLETED；
+    """评测 run 生命周期：Celery 任务跑完前 RUNNING；正常结束 COMPLETED；
     主流程异常（不是单条 case 异常）置 FAILED 并写 error_message。"""
     RUNNING = "running"
     COMPLETED = "completed"

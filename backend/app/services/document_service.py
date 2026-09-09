@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
-from app.db.models import Document, DocumentChunk, DocumentStatus, IngestionTaskType
+from app.db.models import Document, DocumentChunk, DocumentStatus, IngestionTask, IngestionTaskType
 from app.db.repositories.chunk_repo import (
     ChunkStats,
     DocumentChunkRepository,
@@ -152,6 +152,10 @@ class DocumentService:
             page, page_size, status=status, permission_tags=permission_tags,
         )
 
+    async def get_latest_task(self, document_id: UUID) -> IngestionTask | None:
+        """列表/详情页「最近一次任务」进度卡片用。"""
+        return await self.ingestion_task_repo.get_latest_by_document(document_id)
+
     async def delete(self, document_id: UUID) -> None:
         """删除文档。
         DB 是真相之源：先删 DB 行再删 COS object，COS 删除失败仅打 warning，
@@ -271,7 +275,7 @@ class DocumentService:
         doc.error_message = None
         if file.filename:
             doc.name = file.filename
-        task = await self.task_repo.create(doc.id, IngestionTaskType.REINDEX)
+        task = await self.ingestion_task_repo.create(doc.id, IngestionTaskType.REINDEX)
         await self.session.commit()
         await self.session.refresh(doc)
         reindex_document_task.delay(str(doc.id), str(task.id))

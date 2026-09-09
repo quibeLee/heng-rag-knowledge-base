@@ -45,7 +45,7 @@ export const listDocuments = <ThrowOnError extends boolean = false>(options?: Op
 /**
  * Upload Document
  *
- * 上传文档：写入 COS、落库后立即返回，解析与向量化通过 BackgroundTasks 异步进行。
+ * 上传文档：写入 COS、落库后立即返回，解析与向量化通过 Celery 任务异步进行。
  */
 export const uploadDocument = <ThrowOnError extends boolean = false>(options: Options<UploadDocumentData, ThrowOnError>): RequestResult<UploadDocumentResponses, UploadDocumentErrors, ThrowOnError> => (options.client ?? client).post<UploadDocumentResponses, UploadDocumentErrors, ThrowOnError>({
     ...formDataBodySerializer,
@@ -183,7 +183,7 @@ export const listEvaluationDatasets = <ThrowOnError extends boolean = false>(opt
 export const listEvaluationRuns = <ThrowOnError extends boolean = false>(options?: Options<ListEvaluationRunsData, ThrowOnError>): RequestResult<ListEvaluationRunsResponses, ListEvaluationRunsErrors, ThrowOnError> => (options?.client ?? client).get<ListEvaluationRunsResponses, ListEvaluationRunsErrors, ThrowOnError>({ url: '/api/evaluations/runs', ...options });
 
 /**
- * 创建评测 run 并通过 BackgroundTasks 异步执行
+ * 创建评测 run 并派发 Celery 任务异步执行
  */
 export const createEvaluationRun = <ThrowOnError extends boolean = false>(options: Options<CreateEvaluationRunData, ThrowOnError>): RequestResult<CreateEvaluationRunResponses, CreateEvaluationRunErrors, ThrowOnError> => (options.client ?? client).post<CreateEvaluationRunResponses, CreateEvaluationRunErrors, ThrowOnError>({
     url: '/api/evaluations/runs',

@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, BackgroundTasks, Query, Response
+from fastapi import APIRouter, Query, Response
 from app.api.deps import DbSession
 from app.api.schemas.evaluations import (
     BadCaseCategoryValue,
@@ -13,7 +13,8 @@ from app.api.schemas.evaluations import (
     EvaluationRunPage,
     EvaluationRunRead,
 )
-from app.services.evaluation_service import EvaluationService, execute_evaluation_run
+from app.evaluation.tasks import execute_evaluation_run_task
+from app.services.evaluation_service import EvaluationService
 from app.api.deps import DbSession, get_current_admin
 from fastapi import Depends
 router = APIRouter(
@@ -38,16 +39,15 @@ async def list_evaluation_datasets(session: DbSession) -> DatasetListResponse:
     response_model=EvaluationRunRead,
     status_code=201,
     operation_id="createEvaluationRun",
-    summary="创建评测 run 并通过 BackgroundTasks 异步执行",
+    summary="创建评测 run 并派发 Celery 任务异步执行",
 )
 async def create_evaluation_run(
     payload: EvaluationRunCreate,
     session: DbSession,
-    background_tasks: BackgroundTasks,
 ) -> EvaluationRunRead:
     service = EvaluationService(session)
     run = await service.create_run(name=payload.name, dataset_name=payload.dataset_name)
-    background_tasks.add_task(execute_evaluation_run, run.id)
+    execute_evaluation_run_task.delay(str(run.id))
     return EvaluationRunRead.model_validate(run)
 
 @router.get(

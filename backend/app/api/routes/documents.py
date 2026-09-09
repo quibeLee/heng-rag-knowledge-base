@@ -9,7 +9,7 @@ import json
 from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, Header, Query, Response, UploadFile
+from fastapi import APIRouter, File, Form, Header, Query, Response, UploadFile
 
 from app.api.deps import CurrentAdmin, CurrentUser, DbSession, RateLimited
 from app.api.schemas.documents import (
@@ -51,7 +51,7 @@ async def upload_document(
             description='JSON 数组字符串，例如 ["public","hr"]；空 / 不传视为公开',
         ),
 ) -> DocumentRead:
-    """上传文档：写入 COS、落库后立即返回，解析与向量化通过 BackgroundTasks 异步进行。"""
+    """上传文档：写入 COS、落库后立即返回，解析与向量化通过 Celery 任务异步进行。"""
     tags: list[str] = []
     if permission_tags:
         try:
