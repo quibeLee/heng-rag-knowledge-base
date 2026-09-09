@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter
 from fastapi.responses import EventSourceResponse
 from fastapi.sse import ServerSentEvent
-from app.api.deps import DbSession
+from app.api.deps import DbSession, RateLimited
 from app.api.schemas.chat import (
     ChatRequest,
     ConversationCreate,
@@ -66,6 +66,7 @@ async def get_conversation(
 )
 async def stream_chat(
         user: CurrentUser,
+        _rate_limit: RateLimited,
         conversation_id: UUID,
         payload: ChatRequest,
         session: DbSession,

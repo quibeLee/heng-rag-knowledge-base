@@ -54,6 +54,8 @@ interface UiMessage {
   verifyResult?: VerifyResultRead | null
   traceId?: string | null
   traceUrl?: string | null
+  /** 语义缓存，true 表示本条 assistant 消息来自缓存命中 */
+  cacheHit?: boolean
   /** 仅用于"流式中"的 UI 状态，不来自后端 */
   refused?: boolean
   status?: AssistantStatus
@@ -71,6 +73,7 @@ function fromServerMessage(m: MessageRead): UiMessage {
     verifyResult: m.verify_result ?? null,
     traceId: m.trace_id ?? null,
     traceUrl: m.trace_url ?? null,
+    cacheHit: Boolean(m.cache_hit),
     // 历史消息：直接按"内容是否等于固定拒答文案"判定，与后端 metadata.refused 等价
     refused: m.role === 'assistant' && m.content === REFUSAL_ANSWER,
     status: 'done',
@@ -223,6 +226,7 @@ export function ChatPage() {
                 ...prev,
                 traceId: event.traceId,
                 traceUrl: event.traceUrl,
+                cacheHit: event.cacheHit,
               }))
               break
             case 'query_route':
@@ -500,12 +504,22 @@ function AssistantHeader({ message }: { message: UiMessage }) {
       />
     )
   }
-  if (message.verifyResult?.verified === true) {
-    return (
-      <div style={{ marginBottom: 8 }}>
-        <Tag color="green">已校验</Tag>
-      </div>
+  // 缓存命中与已校验是并列的状态指示，不互斥（命中场景下没有 verify，但允许同时展示）
+  const tags: React.ReactNode[] = []
+  if (message.cacheHit) {
+    tags.push(
+      <Tag key="cache" color="cyan">
+        缓存命中
+      </Tag>,
     )
   }
-  return null
+  if (message.verifyResult?.verified === true) {
+    tags.push(
+      <Tag key="verified" color="green">
+        已校验
+      </Tag>,
+    )
+  }
+  if (tags.length === 0) return null
+  return <div style={{ marginBottom: 8 }}>{tags}</div>
 }

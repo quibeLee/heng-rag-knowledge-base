@@ -146,6 +146,8 @@ class MessageRead(BaseModel):
     verify_result: VerifyResultRead | None = None
     trace_id: str | None = None
     trace_url: str | None = None
+    # 语义缓存：True 表示本条 assistant 消息来自缓存命中（跳过了图和 LLM）
+    cache_hit: bool = False
 
     @classmethod
     def from_orm(cls, message) -> "MessageRead":  # type: ignore[no-untyped-def]
@@ -170,8 +172,18 @@ class MessageRead(BaseModel):
             else None,
             trace_id=trace_id,
             trace_url=build_trace_url(trace_id),
+            cache_hit=_parse_cache_hit(message.extra_metadata) if is_assistant else False,
         )
 
+
+def _parse_cache_hit(metadata: dict | None) -> bool:
+    """从 messages.extra_metadata 中提取 cache_hit 标记。
+    历史消息没有该字段，按 False 处理。
+    """
+    if not metadata:
+        return False
+    raw = metadata.get("cache_hit")
+    return bool(raw)
 
 def _parse_agent_steps(metadata: dict | None) -> list[AgentStep] | None:
     """从 messages.extra_metadata 解析 agent_steps；缺失 / 非法静默返回 None。"""

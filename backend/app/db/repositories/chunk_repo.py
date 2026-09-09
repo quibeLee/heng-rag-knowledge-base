@@ -125,7 +125,7 @@ class DocumentChunkRepository:
         """
         distance = DocumentChunk.embedding.cosine_distance(query_embedding)
         conditions: list[ColumnElement[bool]] = [
-                    Document.status == "ready",
+            Document.status == "ready",
         ]
         perm_where = _permission_where(permission_tags)
         if perm_where is not None:
@@ -158,13 +158,13 @@ class DocumentChunkRepository:
         tsquery = func.plainto_tsquery("chinese_zh", query)
         rank_expr = func.ts_rank(DocumentChunk.content_tsv, tsquery)
         conditions: list[ColumnElement[bool]] = [
-                    Document.status == "ready",
-                    DocumentChunk.content_tsv.op("@@")(tsquery),
+            Document.status == "ready",
+            DocumentChunk.content_tsv.op("@@")(tsquery),
         ]
         perm_where = _permission_where(permission_tags)
 
         if perm_where is not None:
-             conditions.append(perm_where)
+            conditions.append(perm_where)
         stmt = (
             select(DocumentChunk, rank_expr.label("rank"))
             .join(Document, Document.id == DocumentChunk.document_id)
@@ -175,3 +175,26 @@ class DocumentChunkRepository:
         )
         rows = (await self.session.execute(stmt)).all()
         return [(chunk, float(rank)) for chunk, rank in rows]
+
+
+async def delete_by_ids(self, chunk_ids: Sequence[UUID]) -> None:
+    """按 id 批量删除：增量索引「删除失效 chunks」用。"""
+    if not chunk_ids:
+        return
+    stmt = delete(DocumentChunk).where(DocumentChunk.id.in_(list(chunk_ids)))
+    await self.session.execute(stmt)
+
+
+async def list_all_by_document(
+        self, document_id: UUID
+) -> list[DocumentChunk]:
+    """拉取一篇文档的全部 chunks。
+    增量索引比对旧 chunk_hash 用；文档 chunks 数量上限受 splitter 控制
+    （单文档 50MB → 数百条 chunk 量级），一次性加载内存可承受。
+    """
+    stmt = (
+        select(DocumentChunk)
+        .where(DocumentChunk.document_id == document_id)
+        .order_by(DocumentChunk.chunk_index.asc())
+    )
+    return list((await self.session.execute(stmt)).scalars().all())

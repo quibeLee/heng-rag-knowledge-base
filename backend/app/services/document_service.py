@@ -2,18 +2,19 @@ import hashlib
 from pathlib import PurePath
 from typing import Sequence
 from uuid import UUID
-from fastapi import BackgroundTasks, UploadFile
+from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
-from app.db.models import Document, DocumentChunk, DocumentStatus
+from app.db.models import Document, DocumentChunk, DocumentStatus, IngestionTaskType
 from app.db.repositories.chunk_repo import (
     ChunkStats,
     DocumentChunkRepository,
 )
 from app.db.repositories.document_repo import DocumentRepository
-from app.ingestion.pipeline import ingest_document
+from app.db.repositories.ingestion_task_repo import IngestionTaskRepository
+from app.ingestion.tasks import ingest_document_task, reindex_document_task
 from app.storage.file_service import FileService, get_file_service
 
 logger = get_logger(__name__)
@@ -83,12 +84,12 @@ class DocumentService:
         self.session = session
         self.repo = DocumentRepository(session)
         self.chunk_repo = DocumentChunkRepository(session)
+        self.ingestion_task_repo = IngestionTaskRepository(session)
         self.file_service = file_service or get_file_service()
 
     async def upload(
             self,
             file: UploadFile,
-            background_tasks: BackgroundTasks,
             *,
             created_by: UUID | None = None,
             permission_tags: list[str] | None = None,
@@ -126,10 +127,11 @@ class DocumentService:
             created_by=created_by,
         )
         await self.repo.add(document)
+        task = await self.ingestion_task_repo.create(document.id, IngestionTaskType.INGEST)
         await self.session.commit()
         await self.session.refresh(document)
-        # 推进到后台任务前 commit，确保 ingest pipeline 用独立 session 也能查到
-        background_tasks.add_task(ingest_document, document.id)
+        # commit 之后 Celery worker 用独立 session 才能查到刚落库的 document / task
+        ingest_document_task.delay(str(document.id), str(task.id))
         return document
 
     async def get(
@@ -166,7 +168,7 @@ class DocumentService:
         await self.file_service.delete(object_key)
         logger.info("document deleted: id=%s", document_id)
 
-    async def retry(self, document_id: UUID, background_tasks: BackgroundTasks) -> Document:
+    async def retry(self, document_id: UUID) -> Document:
         """从 failed 重新触发 ingest。"""
         doc = await self.repo.get_by_id(document_id)
         if doc is None:
@@ -177,9 +179,10 @@ class DocumentService:
         await self.chunk_repo.delete_by_document(document_id)
         doc.status = DocumentStatus.UPLOADING
         doc.error_message = None
+        task = await self.ingestion_task_repo.create(doc.id, IngestionTaskType.INGEST)
         await self.session.commit()
         await self.session.refresh(doc)
-        background_tasks.add_task(ingest_document, doc.id)
+        ingest_document_task.delay(str(doc.id), str(task.id))
         logger.info("document retry scheduled: id=%s", document_id)
         return doc
 
@@ -219,4 +222,58 @@ class DocumentService:
         doc.permission_tags = _normalize_tags(tags)
         await self.session.commit()
         await self.session.refresh(doc)
+        return doc
+
+    async def reindex(
+            self,
+            document_id: UUID,
+            file: UploadFile,
+    ) -> Document:
+        """用新文件替换原文档并触发增量重建。
+        - 只允许 READY / FAILED 状态触发，避免与正在进行的 ingest 抢资源
+        - 文件 MIME 必须与原文档一致：避免「PDF 文档被 Markdown 覆盖」造成的
+          预览 / 下载链路状态混乱
+        - 新文件覆盖到 COS 的同一个 object_key，version+1 由 worker 在 reindex
+          成功后才提交，避免失败的话用户列表里看到版本号但内容没变
+        """
+        doc = await self.repo.get_by_id(document_id)
+        if doc is None:
+            raise NotFoundError("文档不存在")
+        if doc.status not in {DocumentStatus.READY, DocumentStatus.FAILED}:
+            raise ValidationError("文档处理中，请等待完成或失败后再重新索引")
+        mime_type, suffix = _resolve_mime_and_suffix(file)
+        if mime_type != doc.mime_type:
+            raise ValidationError(
+                f"新版本文件类型必须与原文档一致（当前为 {doc.mime_type}）"
+            )
+        content = await file.read()
+        max_bytes = settings.upload_max_size_mb * 1024 * 1024
+        if len(content) == 0:
+            raise ValidationError("上传文件为空")
+        if len(content) > max_bytes:
+            raise ValidationError(f"文件超过 {settings.upload_max_size_mb} MB 上限")
+        new_hash = hashlib.sha256(content).hexdigest()
+        if new_hash == doc.file_hash:
+            # 内容完全一致没有重建必要，避免学员误操作浪费 embedding 配额
+            raise ValidationError("文件内容与现有版本一致，无需重新索引")
+        new_object_key = await self.file_service.upload(
+            content=content,
+            file_hash=new_hash,
+            suffix=suffix,
+            mime_type=mime_type,
+        )
+        doc.file_hash = new_hash
+        doc.size = len(content)
+        doc.cos_object_key = new_object_key
+        doc.cos_bucket = self.file_service.bucket
+        doc.cos_region = self.file_service.region
+        doc.status = DocumentStatus.PARSING
+        doc.error_message = None
+        if file.filename:
+            doc.name = file.filename
+        task = await self.task_repo.create(doc.id, IngestionTaskType.REINDEX)
+        await self.session.commit()
+        await self.session.refresh(doc)
+        reindex_document_task.delay(str(doc.id), str(task.id))
+        logger.info("document reindex scheduled: id=%s", document_id)
         return doc

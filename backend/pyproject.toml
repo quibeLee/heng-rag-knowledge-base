@@ -8,6 +8,7 @@ dependencies = [
     "alembic>=1.19.2",
     "asyncpg>=0.31.0",
     "bcrypt>=5.0.0",
+    "celery[redis]>=5.6.3",
     "cos-python-sdk-v5>=1.9.44",
     "docling>=2.126.0",
     "fastapi>=0.141.1",
@@ -25,6 +26,8 @@ dependencies = [
     "pyjwt>=2.13.0",
     "python-multipart>=0.0.32",
     "ragas>=0.4.3",
+    "redis>=6.4.0",
+    "redisvl>=0.27.1",
     "sqlalchemy[asyncio]>=2.0.52",
     "uvicorn[standard]>=0.52.4",
 ]

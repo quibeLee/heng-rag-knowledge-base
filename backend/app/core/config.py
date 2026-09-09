@@ -118,6 +118,19 @@ class Settings(BaseSettings):
     default_admin_username: str = "admin"
     default_admin_password: str = "admin"
     default_admin_display_name: str = "管理员"
+    # ===== Redis（语义缓存 / 限流 / Celery broker）=====
+    # 应用直接客户端，不同 db 索引让 Celery broker / backend 互不干扰
+    redis_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str = "redis://localhost:6379/1"
+    celery_result_backend: str = "redis://localhost:6379/2"
+    # ===== 语义缓存=====
+    semantic_cache_enabled: bool = True
+    semantic_cache_ttl_seconds: int = 3600
+    # RedisVL 内部用「余弦距离 = 1 - 余弦相似度」做 KNN 查询，转换在 service 层完成
+    semantic_cache_min_similarity: float = 0.92
+    # ===== 滑动窗口限流=====
+    rate_limit_enabled: bool = True
+    rate_limit_per_minute: int = 60
 
     @property
     def observability_enabled(self) -> bool:
@@ -128,6 +141,7 @@ class Settings(BaseSettings):
     def effective_rerank_api_key(self) -> str:
         """rerank_api_key 留空时回落到 chat_api_key，二者本来就是同一份 DashScope key。"""
         return self.rerank_api_key or self.chat_api_key
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

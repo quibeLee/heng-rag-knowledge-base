@@ -14,11 +14,13 @@ from app.db.models import AnswerCitation, Conversation, Message, User
 from app.db.repositories.citation_repo import AnswerCitationRepository
 from app.db.repositories.conversation_repo import ConversationRepository
 from app.db.session import AsyncSessionLocal
+from app.ingestion import embedder
 from app.retrieval.vector_retriever import RetrievedChunk
 from app.services.permission_service import (
     WILDCARD_PERMISSION_TAG,
     compute_user_permission_tags
 )
+from app.services.semantic_cache_service import get_semantic_cache, CachedAnswer
 from app.workflows.graph import get_rag_graph
 from app.workflows.nodes import load_context, stream_generate
 from app.workflows.rag_state import RAGState
@@ -57,6 +59,63 @@ def _serialize_citation(chunk: RetrievedChunk, ordinal: int) -> dict:
         "quote": chunk.content,
         "retrieval_meta": _build_retrieval_meta(chunk),
     }
+
+
+def _serialize_agent_steps(state: RAGState) -> list[dict]:
+    """SSE / metadata 共用的 agent_steps 载荷格式。
+    state 内字段全部用原生 Python 类型，直接 JSON 序列化即可；这里做一层显式拷贝
+    避免后续节点继续追加时影响已发出的事件 / 已持久化的 metadata。
+    """
+    return [dict(step) for step in state.get("agent_steps", [])]
+
+
+def _build_retrieval_meta(chunk: RetrievedChunk) -> dict:
+    """混合检索调试元数据"""
+    return {
+        "sources": list(chunk.sources),
+        "vector_rank": chunk.vector_rank,
+        "vector_score": (
+            round(chunk.vector_score, 4) if chunk.vector_score is not None else None
+        ),
+        "keyword_rank": chunk.keyword_rank,
+        "keyword_score": (
+            round(chunk.keyword_score, 4) if chunk.keyword_score is not None else None
+        ),
+        "rrf_score": (
+            round(chunk.rrf_score, 6) if chunk.rrf_score is not None else None
+        ),
+        "rerank_score": (
+            round(chunk.rerank_score, 4) if chunk.rerank_score is not None else None
+        )
+    }
+
+
+def _build_verify_payload(
+        result: VerifyResult, *, replacement_answer: str | None
+) -> dict:
+    """verify_result SSE / metadata 共用载荷。
+    replacement_answer 仅在 verified=False 时携带；前端按它整段替换流式出来的答案，
+    与 PRD"verify 失败 → 拒答替换"语义对齐。
+    """
+    payload: dict = {
+        "verified": result.verified,
+        "reason": result.reason or None,
+    }
+    if not result.verified and replacement_answer is not None:
+        payload["replacement_answer"] = replacement_answer
+    return payload
+
+
+def _safe_uuid(raw: str | None) -> UUID | None:
+    """缓存里 citation 的 document_id / chunk_id 是字符串，落库需要 UUID。
+    历史快照中可能为 None（原 chunk 已被删），按可空字段处理。
+    """
+    if not raw:
+        return None
+    try:
+        return UUID(str(raw))
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass(frozen=True)
@@ -156,10 +215,23 @@ class ChatService:
                 # load_context 是唯一需要 DB session 的节点，由 service 先填好再交给图。
                 state.update(await load_context(state, session))
 
-                # 2. 跑 RAG 子图：normalize_query → route_query → 检索决策循环
+                # 2. 语义缓存：相似度阈值 + 权限范围一致才视为命中。
+                # 命中时跳过整个图与 LLM，直接发缓存答案；query_embedding 在
+                # 未命中分支由 retrieve 节点重新算（这里不复用是为了让缓存查询
+                # 与主链路解耦，便于学员单点关闭）
+                cache_hit, query_embedding = await self._try_cache_lookup(
+                    question, permissions
+                )
+                if cache_hit is not None:
+                    async for event in self._stream_cache_hit(
+                            state, session, cache_hit, trace_id
+                    ):
+                        yield event
+                    return
+                # 3. 跑 RAG 子图：normalize_query → route_query → 检索决策循环
                 final_state = await get_rag_graph().ainvoke(state)
                 state.update(final_state)  # type: ignore[arg-type]
-                # 3. user 消息落库
+                # 4. user 消息落库 + 首次提问自动改会话标题
                 await self._persist_user_message(state, session)
 
                 yield {
@@ -171,7 +243,7 @@ class ChatService:
                     },
                 }
 
-                # 4. 把 query 路由结果推给前端调试面板（始终发送，前端按 route 选择渲染）
+                # 把 query 路由结果推给前端调试面板（始终发送，前端按 route 选择渲染）
                 yield {
                     "event": "query_route",
                     "data": _build_query_route_payload(state),
@@ -181,7 +253,6 @@ class ChatService:
                     "data": {"steps": _serialize_agent_steps(state)},
                 }
 
-                # 5. retrieve（含拒答判定）→ 先把引用发给前端，让参考资料面板立刻可见
                 # 拒答路径下不下发 citations，retrieved_chunks 可能还残留 agent 循环
                 # 中途某一轮的候选（被 observe_context 判为不足），但语义上既然已经拒答，
                 # 前端就不该再展示这些参考资料
@@ -200,7 +271,7 @@ class ChatService:
                     "data": {"citations": citations_payload},
                 }
 
-                # 6. 生成：拒答直接走拒答文案；否则逐 token 流式
+                # 5. 生成：拒答直接走拒答文案；否则逐 token 流式
                 verify_result: VerifyResult | None = None
                 if state.get("refused"):
                     yield {
@@ -241,6 +312,20 @@ class ChatService:
                     state, session, verify_result=verify_result
                 )
 
+                # 8. 写回缓存：仅非拒答 + verify 通过路径，写入「问题向量 + 答案 + 引用」
+                # query_embedding 在 cache lookup 阶段已经算过一次，直接复用
+                if (
+                        settings.semantic_cache_enabled
+                        and not state.get("refused")
+                        and query_embedding is not None
+                ):
+                    await get_semantic_cache().save(
+                        question=question,
+                        query_embedding=query_embedding,
+                        answer=state["answer"],
+                        citations=citations_payload,
+                        permission_scope=permissions,
+                    )
                 yield {
                     "event": "message_end",
                     "data": {
@@ -262,6 +347,189 @@ class ChatService:
                     },
                 }
 
+    async def _persist_user_message(
+            self, state: RAGState, session: AsyncSession
+    ) -> None:
+        """流式开始前先把 user 消息落库并 commit；首次提问时顺手把会话标题改成问题前 30 字。
+
+        必须在 load_context 之后调用：load_context 读到的"历史消息"不应包含本轮提问。
+        标题更新放在同一事务里，避免新建会话后侧栏一直显示「新对话」。
+        """
+        repo = ConversationRepository(session)
+        # 首次提问（会话还没有任何消息）→ 把默认标题改成本次问题
+        if await repo.count_messages(state["conversation_id"]) == 0:
+            await repo.update_title_if_default(
+                state["conversation_id"], state["question"]
+            )
+        user_msg = ConversationRepository.make_user_message(
+            state["conversation_id"], content=state["question"]
+        )
+        await repo.add_messages([user_msg])
+        await session.commit()
+        state["user_message_id"] = user_msg.id
+
+    async def _persist_assistant_message(
+            self,
+            state: RAGState,
+            session: AsyncSession,
+            *,
+            verify_result: VerifyResult | None,
+    ) -> None:
+        """流式生成结束后落库 assistant 消息及其引用，单事务保证两者原子。"""
+        conv_repo = ConversationRepository(session)
+        citation_repo = AnswerCitationRepository(session)
+
+        extra_metadata: dict = {
+            "refused": bool(state.get("refused")),
+            "query_route": _build_query_route_payload(state),
+            "agent_steps": _serialize_agent_steps(state),
+            # LangSmith trace_id 落库，刷新历史时前端仍可展示 / 跳转
+            "trace_id": state.get("trace_id"),
+            # 正常RAG路径的消息一定不是缓存命中
+            "cache_hit": False,
+        }
+        if verify_result is not None:
+            # verify_result 复用 SSE 载荷格式，但 metadata 不需要 replacement_answer
+            extra_metadata["verify_result"] = _build_verify_payload(
+                verify_result, replacement_answer=None
+            )
+
+        assistant_msg = ConversationRepository.make_assistant_message(
+            state["conversation_id"],
+            content=state["answer"],
+            # 把 query 路由结果持久化到 metadata 字段，刷新历史时前端调试面板还能继续展示
+            extra_metadata=extra_metadata,
+        )
+
+        await conv_repo.add_messages([assistant_msg])
+
+        if not state.get("refused"):
+            citations = [
+                AnswerCitation(
+                    message_id=assistant_msg.id,
+                    ordinal=ordinal,
+                    document_id=chunk.document_id,
+                    chunk_id=chunk.chunk_id,
+                    document_name=chunk.document_name,
+                    page_no=chunk.page_no,
+                    quote=chunk.content,
+                    retrieval_meta=_build_retrieval_meta(chunk),
+                )
+                for ordinal, chunk in enumerate(
+                    state.get("retrieved_chunks", []), start=1
+                )
+            ]
+            await citation_repo.bulk_add(citations)
+
+        await session.commit()
+        state["assistant_message_id"] = assistant_msg.id
+
+    async def _persist_cached_assistant_message(
+            self,
+            state: RAGState,
+            session: AsyncSession,
+            *,
+            citations: list[dict],
+    ) -> None:
+        """缓存命中路径下落库 assistant 消息。
+
+        - `cache_hit=True` 写入 metadata，刷新历史时前端继续展示「缓存命中」Tag
+        - citations 完全复用缓存里的快照（含 retrieval_meta），保证历史与命中
+          原始问答完全一致；新引用 row 由后端基于 ordinal 顺序重建
+        """
+        conv_repo = ConversationRepository(session)
+        citation_repo = AnswerCitationRepository(session)
+
+        assistant_msg = ConversationRepository.make_assistant_message(
+            state["conversation_id"],
+            content=state["answer"],
+            extra_metadata={
+                "refused": False,
+                "trace_id": state.get("trace_id"),
+                "cache_hit": True,
+            },
+        )
+        await conv_repo.add_messages([assistant_msg])
+
+        citation_rows = [
+            AnswerCitation(
+                message_id=assistant_msg.id,
+                ordinal=int(c.get("ordinal") or idx + 1),
+                document_id=_safe_uuid(c.get("document_id")),
+                chunk_id=_safe_uuid(c.get("chunk_id")),
+                document_name=c.get("document_name", ""),
+                page_no=c.get("page_no"),
+                quote=c.get("quote", ""),
+                retrieval_meta=c.get("retrieval_meta"),
+            )
+            for idx, c in enumerate(citations)
+        ]
+        if citation_rows:
+            await citation_repo.bulk_add(citation_rows)
+
+        await session.commit()
+        state["assistant_message_id"] = assistant_msg.id
+
+    async def _try_cache_lookup(
+            self, question: str, permissions: list[str]
+    ) -> tuple[CachedAnswer | None, list[float] | None]:
+        """查询语义缓存。
+
+        返回 (命中项, query_embedding)：
+        - 关掉缓存或 embedding 失败时全部返回 (None, None)，主链路兜底
+        - 未命中时返回 (None, embedding)，外层在 save 阶段可以直接复用
+        """
+        if not settings.semantic_cache_enabled:
+            return None, None
+        try:
+            embedding = await embedder.get_embeddings().aembed_query(question)
+        except Exception:
+            logger.exception("semantic cache: embedding failed, skip lookup")
+            return None, None
+        cached = await get_semantic_cache().lookup(embedding, permissions)
+        return cached, embedding
+
+    async def _stream_cache_hit(
+            self,
+            state: RAGState,
+            session: AsyncSession,
+            cached: CachedAnswer,
+            trace_id: str | None,
+    ) -> AsyncIterator[dict]:
+        """命中分支的简化 SSE：跳过 query_route / agent_steps / verify_result，
+        但仍要落库 user / assistant 消息，保证历史记录完整。"""
+        state["answer"] = cached.answer
+        state["refused"] = False
+
+        await self._persist_user_message(state, session)
+        yield {
+            "event": "message_start",
+            "data": {
+                "user_message_id": str(state["user_message_id"]),
+                "trace_id": trace_id,
+                "trace_url": build_trace_url(trace_id),
+                "cache_hit": True,
+            },
+        }
+        yield {
+            "event": "citations",
+            "data": {"citations": cached.citations},
+        }
+        # 命中路径不流式：缓存答案瞬时可用，一次性整段发给前端，前端按 token 累加渲染
+        yield {"event": "token", "data": {"delta": cached.answer}}
+
+        await self._persist_cached_assistant_message(
+            state, session, citations=cached.citations
+        )
+        yield {
+            "event": "message_end",
+            "data": {
+                "message_id": str(state["assistant_message_id"]),
+                "refused": False,
+            },
+        }
+
+    # --- 评测专用 ---
     @traceable(name="ChatService.answer_for_evaluation", run_type="chain")
     async def answer_for_evaluation(self, question: str) -> EvaluationAnswer:
         """跑一遍完整 RAG 拿非流式结果，用于离线评测。
@@ -343,123 +611,3 @@ class ChatService:
                 first_token_latency_ms=None,
                 error_message=str(exc).strip() or exc.__class__.__name__,
             )
-
-    async def _persist_user_message(
-            self, state: RAGState, session: AsyncSession
-    ) -> None:
-        """流式开始前先把 user 消息落库并 commit；首次提问时顺手把会话标题改成问题前 30 字。
-
-        必须在 load_context 之后调用：load_context 读到的"历史消息"不应包含本轮提问。
-        标题更新放在同一事务里，避免新建会话后侧栏一直显示「新对话」。
-        """
-        repo = ConversationRepository(session)
-        # 首次提问（会话还没有任何消息）→ 把默认标题改成本次问题
-        if await repo.count_messages(state["conversation_id"]) == 0:
-            await repo.update_title_if_default(
-                state["conversation_id"], state["question"]
-            )
-        user_msg = ConversationRepository.make_user_message(
-            state["conversation_id"], content=state["question"]
-        )
-        await repo.add_messages([user_msg])
-        await session.commit()
-        state["user_message_id"] = user_msg.id
-
-    async def _persist_assistant_message(
-            self,
-            state: RAGState,
-            session: AsyncSession,
-            *,
-            verify_result: VerifyResult | None,
-    ) -> None:
-        """流式生成结束后落库 assistant 消息及其引用，单事务保证两者原子。"""
-        conv_repo = ConversationRepository(session)
-        citation_repo = AnswerCitationRepository(session)
-
-        extra_metadata: dict = {
-            "refused": bool(state.get("refused")),
-            "query_route": _build_query_route_payload(state),
-            "agent_steps": _serialize_agent_steps(state),
-            # LangSmith trace_id 落库，刷新历史时前端仍可展示 / 跳转
-            "trace_id": state.get("trace_id"),
-        }
-        if verify_result is not None:
-            # verify_result 复用 SSE 载荷格式，但 metadata 不需要 replacement_answer
-            extra_metadata["verify_result"] = _build_verify_payload(
-                verify_result, replacement_answer=None
-            )
-
-        assistant_msg = ConversationRepository.make_assistant_message(
-            state["conversation_id"],
-            content=state["answer"],
-            # 把 query 路由结果持久化到 metadata 字段，刷新历史时前端调试面板还能继续展示
-            extra_metadata=extra_metadata,
-        )
-
-        await conv_repo.add_messages([assistant_msg])
-
-        if not state.get("refused"):
-            citations = [
-                AnswerCitation(
-                    message_id=assistant_msg.id,
-                    ordinal=ordinal,
-                    document_id=chunk.document_id,
-                    chunk_id=chunk.chunk_id,
-                    document_name=chunk.document_name,
-                    page_no=chunk.page_no,
-                    quote=chunk.content,
-                    retrieval_meta=_build_retrieval_meta(chunk),
-                )
-                for ordinal, chunk in enumerate(
-                    state.get("retrieved_chunks", []), start=1
-                )
-            ]
-            await citation_repo.bulk_add(citations)
-
-        await session.commit()
-        state["assistant_message_id"] = assistant_msg.id
-
-
-def _serialize_agent_steps(state: RAGState) -> list[dict]:
-    """SSE / metadata 共用的 agent_steps 载荷格式。
-    state 内字段全部用原生 Python 类型，直接 JSON 序列化即可；这里做一层显式拷贝
-    避免后续节点继续追加时影响已发出的事件 / 已持久化的 metadata。
-    """
-    return [dict(step) for step in state.get("agent_steps", [])]
-
-
-def _build_retrieval_meta(chunk: RetrievedChunk) -> dict:
-    """混合检索调试元数据"""
-    return {
-        "sources": list(chunk.sources),
-        "vector_rank": chunk.vector_rank,
-        "vector_score": (
-            round(chunk.vector_score, 4) if chunk.vector_score is not None else None
-        ),
-        "keyword_rank": chunk.keyword_rank,
-        "keyword_score": (
-            round(chunk.keyword_score, 4) if chunk.keyword_score is not None else None
-        ),
-        "rrf_score": (
-            round(chunk.rrf_score, 6) if chunk.rrf_score is not None else None
-        ),
-        "rerank_score": (
-            round(chunk.rerank_score, 4) if chunk.rerank_score is not None else None
-        )
-    }
-
-
-def _build_verify_payload(
-        result: VerifyResult, *, replacement_answer: str | None
-) -> dict:
-    """verify_result SSE / metadata 共用载荷。
-    replacement_answer 仅在 verified=False 时携带；前端按它整段替换流式出来的答案，
-    与 PRD"verify 失败 → 拒答替换"语义对齐。
-    """
-    payload: dict = {
-        "verified": result.verified,
-        "reason": result.reason or None,
-    }
-    if not result.verified and replacement_answer is not None:
-        payload["replacement_answer"] = replacement_answer
-    return payload

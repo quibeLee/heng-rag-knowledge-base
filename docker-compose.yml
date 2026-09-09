@@ -22,5 +22,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  redis:
+    # 第 12 章引入：语义缓存、滑动窗口限流、Celery broker/backend 共用同一个 Redis 实例。
+    # 使用 redis-stack-server 镜像（命令完全兼容 redis:7）：多带 RediSearch 模块，
+    # 让语义缓存可以通过 RedisVL 的 KNN 向量索引检索，避免应用层全量扫描。
+    image: redis/redis-stack-server:7.4.0-v0
+    container_name: rag-kb-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - rag_kb_redisdata:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 volumes:
   rag_kb_pgdata:
+  rag_kb_redisdata:

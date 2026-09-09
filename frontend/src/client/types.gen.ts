@@ -57,6 +57,18 @@ export type AssignRolesRequest = {
 };
 
 /**
+ * Body_reindexDocument
+ */
+export type BodyReindexDocument = {
+    /**
+     * File
+     *
+     * 新版本文件（MIME 必须与原文档一致）
+     */
+    file: Blob | File;
+};
+
+/**
  * Body_uploadDocument
  */
 export type BodyUploadDocument = {
@@ -432,6 +444,11 @@ export type DocumentRead = {
      * Error Message
      */
     error_message?: string | null;
+    /**
+     * Version
+     */
+    version?: number;
+    latest_task?: IngestionTaskRead | null;
     /**
      * Permission Tags
      */
@@ -873,6 +890,54 @@ export type HealthStatus = {
 };
 
 /**
+ * IngestionTaskRead
+ *
+ * 单条入库任务快照（详情页「最近一次任务」卡片用）。
+ */
+export type IngestionTaskRead = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Task Type
+     */
+    task_type: 'ingest' | 'reindex';
+    /**
+     * Status
+     */
+    status: 'pending' | 'running' | 'success' | 'failed';
+    /**
+     * Retry Count
+     */
+    retry_count: number;
+    /**
+     * Error Message
+     */
+    error_message?: string | null;
+    /**
+     * Progress Total
+     */
+    progress_total: number;
+    /**
+     * Progress Done
+     */
+    progress_done: number;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Finished At
+     */
+    finished_at?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
  * LoginRequest
  */
 export type LoginRequest = {
@@ -964,6 +1029,10 @@ export type MessageRead = {
      * Trace Url
      */
     trace_url?: string | null;
+    /**
+     * Cache Hit
+     */
+    cache_hit?: boolean;
 };
 
 /**
@@ -1642,6 +1711,42 @@ export type GetDocumentChunkResponses = {
 };
 
 export type GetDocumentChunkResponse = GetDocumentChunkResponses[keyof GetDocumentChunkResponses];
+
+export type ReindexDocumentData = {
+    body: BodyReindexDocument;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/documents/{document_id}/reindex';
+};
+
+export type ReindexDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReindexDocumentError = ReindexDocumentErrors[keyof ReindexDocumentErrors];
+
+export type ReindexDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentRead;
+};
+
+export type ReindexDocumentResponse = ReindexDocumentResponses[keyof ReindexDocumentResponses];
 
 export type ListConversationsData = {
     body?: never;
