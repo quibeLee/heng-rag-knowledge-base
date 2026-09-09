@@ -10,6 +10,10 @@ class RAGState(TypedDict, total=False):
     # 输入
     conversation_id: UUID
     question: str
+    # 用户有效权限标签，由 service 在进图前注入
+    # 含 "*" 时检索 SQL 不附加权限过滤（admin 视角）；
+    # 评测路径传 ["*"] 让评测不被权限拦住
+    permissions: list[str]
     # load_context 产出
     chat_history: list[Message]
     # normalize_query 产出（本章 = question）
@@ -39,3 +43,6 @@ class RAGState(TypedDict, total=False):
     # chat_service 落库后回写
     user_message_id: UUID
     assistant_message_id: UUID
+    # LangSmith trace_id：未启用观测 / 取不到 run tree 时为 None
+    # 仅由 service 层 stream_answer 进入 @traceable 上下文后写入，节点不感知
+    trace_id: str | None

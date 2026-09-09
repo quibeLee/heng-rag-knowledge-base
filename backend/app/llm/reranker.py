@@ -1,24 +1,33 @@
 import dataclasses
 from typing import Any
 import httpx
+from langsmith import traceable
+
 from app.core.config import settings
 from app.core.exceptions import ConfigurationError
 from app.core.logging import get_logger
 from app.retrieval.vector_retriever import RetrievedChunk
+
 logger = get_logger(__name__)
+
+
 class Reranker:
     """DashScope qwen3-rerank 客户端。
     单例持有 httpx.AsyncClient 复用连接池；rerank 是单次同步问答的一环，
     要求低延迟，所以超时设置得比 chat 短一些（默认 8s）。
     """
+
     def __init__(self) -> None:
         self._client: httpx.AsyncClient | None = None
+
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=settings.rerank_timeout)
         return self._client
+
+    @traceable(name="Reranker.rerank", run_type="tool")
     async def rerank(
-        self, query: str, candidates: list[RetrievedChunk]
+            self, query: str, candidates: list[RetrievedChunk]
     ) -> list[RetrievedChunk]:
         if len(candidates) <= 1:
             return candidates

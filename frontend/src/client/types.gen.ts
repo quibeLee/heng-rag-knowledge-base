@@ -47,6 +47,16 @@ export type AgentStep = {
 };
 
 /**
+ * AssignRolesRequest
+ */
+export type AssignRolesRequest = {
+    /**
+     * Role Ids
+     */
+    role_ids?: Array<string>;
+};
+
+/**
  * Body_uploadDocument
  */
 export type BodyUploadDocument = {
@@ -56,6 +66,12 @@ export type BodyUploadDocument = {
      * 待上传文档（PDF / DOCX / Markdown / HTML）
      */
     file: Blob | File;
+    /**
+     * Permission Tags
+     *
+     * JSON 数组字符串，例如 ["public","hr"]；空 / 不传视为公开
+     */
+    permission_tags?: string | null;
 };
 
 /**
@@ -200,6 +216,30 @@ export type ConversationRead = {
 };
 
 /**
+ * DatasetInfo
+ */
+export type DatasetInfo = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Size
+     */
+    size: number;
+};
+
+/**
+ * DatasetListResponse
+ */
+export type DatasetListResponse = {
+    /**
+     * Items
+     */
+    items: Array<DatasetInfo>;
+};
+
+/**
  * DocumentChunkDetail
  *
  * chunk 详情：返回完整 content。
@@ -305,7 +345,7 @@ export type DocumentChunkRead = {
 /**
  * DocumentChunkStats
  *
- * 切分统计：直观看到 chunk_size / overlap 配置的实际效果。
+ * 切分统计：展示 chunk_size / overlap 配置对切分结果的影响。
  */
 export type DocumentChunkStats = {
     /**
@@ -349,6 +389,18 @@ export type DocumentListResponse = {
 };
 
 /**
+ * DocumentPermissionTagsUpdate
+ *
+ * admin 改文档可见性标签的请求体。
+ */
+export type DocumentPermissionTagsUpdate = {
+    /**
+     * Permission Tags
+     */
+    permission_tags?: Array<string>;
+};
+
+/**
  * DocumentRead
  */
 export type DocumentRead = {
@@ -381,6 +433,14 @@ export type DocumentRead = {
      */
     error_message?: string | null;
     /**
+     * Permission Tags
+     */
+    permission_tags?: Array<string>;
+    /**
+     * Created By
+     */
+    created_by?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -388,6 +448,392 @@ export type DocumentRead = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * EvaluationItemPage
+ */
+export type EvaluationItemPage = {
+    /**
+     * Items
+     */
+    items: Array<EvaluationItemRead>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+};
+
+/**
+ * EvaluationItemRead
+ *
+ * 单条 case 的输入快照 + 实际输出 + 指标 + Bad Case 归因。
+ */
+export type EvaluationItemRead = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Run Id
+     */
+    run_id: string;
+    /**
+     * Case Id
+     */
+    case_id: string;
+    /**
+     * Question
+     */
+    question: string;
+    /**
+     * Expected Answer
+     */
+    expected_answer: string;
+    /**
+     * Expected Document Names
+     */
+    expected_document_names?: Array<string>;
+    /**
+     * Expected Keywords
+     */
+    expected_keywords?: Array<string>;
+    /**
+     * Should Refuse
+     */
+    should_refuse: boolean;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Actual Answer
+     */
+    actual_answer: string;
+    /**
+     * Actual Refused
+     */
+    actual_refused: boolean;
+    /**
+     * Citations
+     */
+    citations?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Retrieved Chunks Meta
+     */
+    retrieved_chunks_meta?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Query Route
+     */
+    query_route?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Agent Steps
+     */
+    agent_steps?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Verify Result
+     */
+    verify_result?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Trace Id
+     */
+    trace_id?: string | null;
+    /**
+     * Latency Ms
+     */
+    latency_ms: number;
+    /**
+     * First Token Latency Ms
+     */
+    first_token_latency_ms?: number | null;
+    /**
+     * Error Message
+     */
+    error_message?: string | null;
+    /**
+     * Faithfulness
+     */
+    faithfulness?: number | null;
+    /**
+     * Answer Relevancy
+     */
+    answer_relevancy?: number | null;
+    /**
+     * Context Precision
+     */
+    context_precision?: number | null;
+    /**
+     * Context Recall
+     */
+    context_recall?: number | null;
+    /**
+     * Citation Hit
+     */
+    citation_hit?: boolean | null;
+    /**
+     * Refusal Correct
+     */
+    refusal_correct: boolean;
+    /**
+     * Is Bad Case
+     */
+    is_bad_case: boolean;
+    /**
+     * Bad Case Category
+     */
+    bad_case_category?: 'document_parse_failed' | 'chunk_split_bad' | 'embedding_recall_miss' | 'keyword_recall_miss' | 'rrf_fusion_error' | 'rerank_order_error' | 'context_judge_too_loose' | 'context_judge_too_strict' | 'prompt_constraint_weak' | 'generation_off_context' | 'citation_parse_failed' | 'permission_filter_error' | 'other' | null;
+    /**
+     * Bad Case Note
+     */
+    bad_case_note?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * EvaluationItemUpdate
+ *
+ * 前端覆盖 Bad Case 归因。
+ * 传 `is_bad_case=null` 时保持原值；显式传 `is_bad_case=false` 可手动把
+ * 误判的 case 标回"非 Bad Case"。
+ */
+export type EvaluationItemUpdate = {
+    /**
+     * Bad Case Category
+     */
+    bad_case_category?: 'document_parse_failed' | 'chunk_split_bad' | 'embedding_recall_miss' | 'keyword_recall_miss' | 'rrf_fusion_error' | 'rerank_order_error' | 'context_judge_too_loose' | 'context_judge_too_strict' | 'prompt_constraint_weak' | 'generation_off_context' | 'citation_parse_failed' | 'permission_filter_error' | 'other' | null;
+    /**
+     * Bad Case Note
+     */
+    bad_case_note?: string | null;
+    /**
+     * Is Bad Case
+     */
+    is_bad_case?: boolean | null;
+};
+
+/**
+ * EvaluationRunCreate
+ *
+ * 创建 run 的请求体。dataset_name 不带后缀（如 `seed`）。
+ */
+export type EvaluationRunCreate = {
+    /**
+     * Name
+     *
+     * 便于回看的 run 名称
+     */
+    name: string;
+    /**
+     * Dataset Name
+     *
+     * 评测集文件名（不带 .jsonl）
+     */
+    dataset_name: string;
+};
+
+/**
+ * EvaluationRunListItem
+ *
+ * 列表元素：与 Read 一致字段，提取出来后续可裁字段也方便。
+ */
+export type EvaluationRunListItem = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Dataset Name
+     */
+    dataset_name: string;
+    /**
+     * Dataset Size
+     */
+    dataset_size: number;
+    /**
+     * Status
+     */
+    status: 'running' | 'completed' | 'failed';
+    /**
+     * Progress Total
+     */
+    progress_total: number;
+    /**
+     * Progress Completed
+     */
+    progress_completed: number;
+    /**
+     * Progress Failed
+     */
+    progress_failed: number;
+    /**
+     * Faithfulness
+     */
+    faithfulness?: number | null;
+    /**
+     * Answer Relevancy
+     */
+    answer_relevancy?: number | null;
+    /**
+     * Context Precision
+     */
+    context_precision?: number | null;
+    /**
+     * Context Recall
+     */
+    context_recall?: number | null;
+    /**
+     * Citation Hit Rate
+     */
+    citation_hit_rate?: number | null;
+    /**
+     * Refusal Accuracy
+     */
+    refusal_accuracy?: number | null;
+    /**
+     * Avg Latency Ms
+     */
+    avg_latency_ms?: number | null;
+    /**
+     * Avg First Token Latency Ms
+     */
+    avg_first_token_latency_ms?: number | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * EvaluationRunPage
+ */
+export type EvaluationRunPage = {
+    /**
+     * Items
+     */
+    items: Array<EvaluationRunListItem>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+};
+
+/**
+ * EvaluationRunRead
+ */
+export type EvaluationRunRead = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Dataset Name
+     */
+    dataset_name: string;
+    /**
+     * Dataset Size
+     */
+    dataset_size: number;
+    /**
+     * Status
+     */
+    status: 'running' | 'completed' | 'failed';
+    /**
+     * Progress Total
+     */
+    progress_total: number;
+    /**
+     * Progress Completed
+     */
+    progress_completed: number;
+    /**
+     * Progress Failed
+     */
+    progress_failed: number;
+    /**
+     * Faithfulness
+     */
+    faithfulness?: number | null;
+    /**
+     * Answer Relevancy
+     */
+    answer_relevancy?: number | null;
+    /**
+     * Context Precision
+     */
+    context_precision?: number | null;
+    /**
+     * Context Recall
+     */
+    context_recall?: number | null;
+    /**
+     * Citation Hit Rate
+     */
+    citation_hit_rate?: number | null;
+    /**
+     * Refusal Accuracy
+     */
+    refusal_accuracy?: number | null;
+    /**
+     * Avg Latency Ms
+     */
+    avg_latency_ms?: number | null;
+    /**
+     * Avg First Token Latency Ms
+     */
+    avg_first_token_latency_ms?: number | null;
+    /**
+     * Error Message
+     */
+    error_message?: string | null;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Finished At
+     */
+    finished_at?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
 };
 
 /**
@@ -427,6 +873,60 @@ export type HealthStatus = {
 };
 
 /**
+ * LoginRequest
+ */
+export type LoginRequest = {
+    /**
+     * Username
+     */
+    username: string;
+    /**
+     * Password
+     */
+    password: string;
+};
+
+/**
+ * LoginResponse
+ */
+export type LoginResponse = {
+    /**
+     * Access Token
+     */
+    access_token: string;
+    /**
+     * Token Type
+     */
+    token_type?: 'bearer';
+    user: UserRead;
+    /**
+     * Permission Tags
+     */
+    permission_tags?: Array<string>;
+    /**
+     * Is Admin
+     */
+    is_admin: boolean;
+};
+
+/**
+ * MeResponse
+ *
+ * 当前登录用户视图：用户基础信息 + 合并后的有效权限标签 + 是否管理员。
+ */
+export type MeResponse = {
+    user: UserRead;
+    /**
+     * Permission Tags
+     */
+    permission_tags?: Array<string>;
+    /**
+     * Is Admin
+     */
+    is_admin: boolean;
+};
+
+/**
  * MessageRead
  */
 export type MessageRead = {
@@ -456,6 +956,14 @@ export type MessageRead = {
      */
     agent_steps?: Array<AgentStep> | null;
     verify_result?: VerifyResultRead | null;
+    /**
+     * Trace Id
+     */
+    trace_id?: string | null;
+    /**
+     * Trace Url
+     */
+    trace_url?: string | null;
 };
 
 /**
@@ -525,6 +1033,167 @@ export type RetrievalMeta = {
      * Rerank Score
      */
     rerank_score?: number | null;
+};
+
+/**
+ * RoleCreate
+ */
+export type RoleCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string;
+    /**
+     * Permission Tags
+     */
+    permission_tags?: Array<string>;
+};
+
+/**
+ * RoleRead
+ */
+export type RoleRead = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Permission Tags
+     */
+    permission_tags?: Array<string>;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * RoleUpdate
+ *
+ * name 字段刻意不暴露：策略代码以角色名为锚（"admin"），不允许改名。
+ */
+export type RoleUpdate = {
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Permission Tags
+     */
+    permission_tags?: Array<string> | null;
+};
+
+/**
+ * UserCreate
+ */
+export type UserCreate = {
+    /**
+     * Username
+     */
+    username: string;
+    /**
+     * Password
+     */
+    password: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Role Ids
+     */
+    role_ids?: Array<string>;
+};
+
+/**
+ * UserPage
+ */
+export type UserPage = {
+    /**
+     * Items
+     */
+    items: Array<UserRead>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+};
+
+/**
+ * UserRead
+ *
+ * 用户响应。role 列表里只展示必要字段，权限标签由前端从 roles 推。
+ */
+export type UserRead = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Username
+     */
+    username: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Status
+     */
+    status: 'active' | 'disabled';
+    /**
+     * Roles
+     */
+    roles?: Array<RoleRead>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * UserUpdate
+ *
+ * PATCH 请求体；字段均可选。
+ * password 字段如果传非空字符串则重置密码；传 None 不动密码。
+ */
+export type UserUpdate = {
+    /**
+     * Display Name
+     */
+    display_name?: string | null;
+    /**
+     * Status
+     */
+    status?: 'active' | 'disabled' | null;
+    /**
+     * Password
+     */
+    password?: string | null;
 };
 
 /**
@@ -623,6 +1292,12 @@ export type HealthCosResponse = HealthCosResponses[keyof HealthCosResponses];
 
 export type ListDocumentsData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path?: never;
     query?: {
         /**
@@ -663,6 +1338,12 @@ export type ListDocumentsResponse = ListDocumentsResponses[keyof ListDocumentsRe
 
 export type UploadDocumentData = {
     body: BodyUploadDocument;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path?: never;
     query?: never;
     url: '/api/documents';
@@ -688,6 +1369,12 @@ export type UploadDocumentResponse = UploadDocumentResponses[keyof UploadDocumen
 
 export type DeleteDocumentData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path: {
         /**
          * Document Id
@@ -718,6 +1405,12 @@ export type DeleteDocumentResponse = DeleteDocumentResponses[keyof DeleteDocumen
 
 export type GetDocumentData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path: {
         /**
          * Document Id
@@ -748,6 +1441,12 @@ export type GetDocumentResponse = GetDocumentResponses[keyof GetDocumentResponse
 
 export type RetryDocumentData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path: {
         /**
          * Document Id
@@ -776,8 +1475,50 @@ export type RetryDocumentResponses = {
 
 export type RetryDocumentResponse = RetryDocumentResponses[keyof RetryDocumentResponses];
 
+export type UpdateDocumentPermissionTagsData = {
+    body: DocumentPermissionTagsUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/documents/{document_id}/permission-tags';
+};
+
+export type UpdateDocumentPermissionTagsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateDocumentPermissionTagsError = UpdateDocumentPermissionTagsErrors[keyof UpdateDocumentPermissionTagsErrors];
+
+export type UpdateDocumentPermissionTagsResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentRead;
+};
+
+export type UpdateDocumentPermissionTagsResponse = UpdateDocumentPermissionTagsResponses[keyof UpdateDocumentPermissionTagsResponses];
+
 export type DownloadDocumentData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path: {
         /**
          * Document Id
@@ -791,6 +1532,12 @@ export type DownloadDocumentData = {
          * 1=强制下载, 0=尝试内联预览
          */
         download?: number;
+        /**
+         * Token
+         *
+         * Bearer token（iframe/新窗口无法带 header 时使用）
+         */
+        token?: string | null;
     };
     url: '/api/documents/{document_id}/file';
 };
@@ -813,6 +1560,12 @@ export type DownloadDocumentResponses = {
 
 export type ListDocumentChunksData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path: {
         /**
          * Document Id
@@ -852,6 +1605,12 @@ export type ListDocumentChunksResponse = ListDocumentChunksResponses[keyof ListD
 
 export type GetDocumentChunkData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path: {
         /**
          * Document Id
@@ -886,6 +1645,12 @@ export type GetDocumentChunkResponse = GetDocumentChunkResponses[keyof GetDocume
 
 export type ListConversationsData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path?: never;
     query?: {
         /**
@@ -920,6 +1685,12 @@ export type ListConversationsResponse = ListConversationsResponses[keyof ListCon
 
 export type CreateConversationData = {
     body: ConversationCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path?: never;
     query?: never;
     url: '/api/conversations';
@@ -945,6 +1716,12 @@ export type CreateConversationResponse = CreateConversationResponses[keyof Creat
 
 export type DeleteConversationData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path: {
         /**
          * Conversation Id
@@ -975,6 +1752,12 @@ export type DeleteConversationResponse = DeleteConversationResponses[keyof Delet
 
 export type GetConversationData = {
     body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path: {
         /**
          * Conversation Id
@@ -1005,6 +1788,12 @@ export type GetConversationResponse = GetConversationResponses[keyof GetConversa
 
 export type StreamChatData = {
     body: ChatRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
     path: {
         /**
          * Conversation Id
@@ -1046,3 +1835,673 @@ export type GetAgentGraphMermaidResponses = {
 };
 
 export type GetAgentGraphMermaidResponse = GetAgentGraphMermaidResponses[keyof GetAgentGraphMermaidResponses];
+
+export type ListEvaluationDatasetsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/evaluations/datasets';
+};
+
+export type ListEvaluationDatasetsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListEvaluationDatasetsError = ListEvaluationDatasetsErrors[keyof ListEvaluationDatasetsErrors];
+
+export type ListEvaluationDatasetsResponses = {
+    /**
+     * Successful Response
+     */
+    200: DatasetListResponse;
+};
+
+export type ListEvaluationDatasetsResponse = ListEvaluationDatasetsResponses[keyof ListEvaluationDatasetsResponses];
+
+export type ListEvaluationRunsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
+    url: '/api/evaluations/runs';
+};
+
+export type ListEvaluationRunsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListEvaluationRunsError = ListEvaluationRunsErrors[keyof ListEvaluationRunsErrors];
+
+export type ListEvaluationRunsResponses = {
+    /**
+     * Successful Response
+     */
+    200: EvaluationRunPage;
+};
+
+export type ListEvaluationRunsResponse = ListEvaluationRunsResponses[keyof ListEvaluationRunsResponses];
+
+export type CreateEvaluationRunData = {
+    body: EvaluationRunCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/evaluations/runs';
+};
+
+export type CreateEvaluationRunErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateEvaluationRunError = CreateEvaluationRunErrors[keyof CreateEvaluationRunErrors];
+
+export type CreateEvaluationRunResponses = {
+    /**
+     * Successful Response
+     */
+    201: EvaluationRunRead;
+};
+
+export type CreateEvaluationRunResponse = CreateEvaluationRunResponses[keyof CreateEvaluationRunResponses];
+
+export type DeleteEvaluationRunData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/evaluations/runs/{run_id}';
+};
+
+export type DeleteEvaluationRunErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteEvaluationRunError = DeleteEvaluationRunErrors[keyof DeleteEvaluationRunErrors];
+
+export type DeleteEvaluationRunResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteEvaluationRunResponse = DeleteEvaluationRunResponses[keyof DeleteEvaluationRunResponses];
+
+export type GetEvaluationRunData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/evaluations/runs/{run_id}';
+};
+
+export type GetEvaluationRunErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetEvaluationRunError = GetEvaluationRunErrors[keyof GetEvaluationRunErrors];
+
+export type GetEvaluationRunResponses = {
+    /**
+     * Successful Response
+     */
+    200: EvaluationRunRead;
+};
+
+export type GetEvaluationRunResponse = GetEvaluationRunResponses[keyof GetEvaluationRunResponses];
+
+export type ListEvaluationItemsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+        /**
+         * Bad Case Only
+         */
+        bad_case_only?: boolean;
+        /**
+         * Category
+         */
+        category?: 'document_parse_failed' | 'chunk_split_bad' | 'embedding_recall_miss' | 'keyword_recall_miss' | 'rrf_fusion_error' | 'rerank_order_error' | 'context_judge_too_loose' | 'context_judge_too_strict' | 'prompt_constraint_weak' | 'generation_off_context' | 'citation_parse_failed' | 'permission_filter_error' | 'other' | null;
+    };
+    url: '/api/evaluations/runs/{run_id}/items';
+};
+
+export type ListEvaluationItemsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListEvaluationItemsError = ListEvaluationItemsErrors[keyof ListEvaluationItemsErrors];
+
+export type ListEvaluationItemsResponses = {
+    /**
+     * Successful Response
+     */
+    200: EvaluationItemPage;
+};
+
+export type ListEvaluationItemsResponse = ListEvaluationItemsResponses[keyof ListEvaluationItemsResponses];
+
+export type GetEvaluationItemData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * Item Id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/api/evaluations/items/{item_id}';
+};
+
+export type GetEvaluationItemErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetEvaluationItemError = GetEvaluationItemErrors[keyof GetEvaluationItemErrors];
+
+export type GetEvaluationItemResponses = {
+    /**
+     * Successful Response
+     */
+    200: EvaluationItemRead;
+};
+
+export type GetEvaluationItemResponse = GetEvaluationItemResponses[keyof GetEvaluationItemResponses];
+
+export type UpdateEvaluationItemData = {
+    body: EvaluationItemUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * Item Id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/api/evaluations/items/{item_id}';
+};
+
+export type UpdateEvaluationItemErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateEvaluationItemError = UpdateEvaluationItemErrors[keyof UpdateEvaluationItemErrors];
+
+export type UpdateEvaluationItemResponses = {
+    /**
+     * Successful Response
+     */
+    200: EvaluationItemRead;
+};
+
+export type UpdateEvaluationItemResponse = UpdateEvaluationItemResponses[keyof UpdateEvaluationItemResponses];
+
+export type LoginData = {
+    body: LoginRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/login';
+};
+
+export type LoginErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LoginError = LoginErrors[keyof LoginErrors];
+
+export type LoginResponses = {
+    /**
+     * Successful Response
+     */
+    200: LoginResponse;
+};
+
+export type LoginResponse2 = LoginResponses[keyof LoginResponses];
+
+export type GetCurrentUserData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/auth/me';
+};
+
+export type GetCurrentUserErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCurrentUserError = GetCurrentUserErrors[keyof GetCurrentUserErrors];
+
+export type GetCurrentUserResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeResponse;
+};
+
+export type GetCurrentUserResponse = GetCurrentUserResponses[keyof GetCurrentUserResponses];
+
+export type ListUsersData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
+    url: '/api/users';
+};
+
+export type ListUsersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListUsersError = ListUsersErrors[keyof ListUsersErrors];
+
+export type ListUsersResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserPage;
+};
+
+export type ListUsersResponse = ListUsersResponses[keyof ListUsersResponses];
+
+export type CreateUserData = {
+    body: UserCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/users';
+};
+
+export type CreateUserErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateUserError = CreateUserErrors[keyof CreateUserErrors];
+
+export type CreateUserResponses = {
+    /**
+     * Successful Response
+     */
+    201: UserRead;
+};
+
+export type CreateUserResponse = CreateUserResponses[keyof CreateUserResponses];
+
+export type DeleteUserData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/users/{user_id}';
+};
+
+export type DeleteUserErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteUserError = DeleteUserErrors[keyof DeleteUserErrors];
+
+export type DeleteUserResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteUserResponse = DeleteUserResponses[keyof DeleteUserResponses];
+
+export type UpdateUserData = {
+    body: UserUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/users/{user_id}';
+};
+
+export type UpdateUserErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateUserError = UpdateUserErrors[keyof UpdateUserErrors];
+
+export type UpdateUserResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserRead;
+};
+
+export type UpdateUserResponse = UpdateUserResponses[keyof UpdateUserResponses];
+
+export type AssignUserRolesData = {
+    body: AssignRolesRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/users/{user_id}/roles';
+};
+
+export type AssignUserRolesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AssignUserRolesError = AssignUserRolesErrors[keyof AssignUserRolesErrors];
+
+export type AssignUserRolesResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserRead;
+};
+
+export type AssignUserRolesResponse = AssignUserRolesResponses[keyof AssignUserRolesResponses];
+
+export type ListRolesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/roles';
+};
+
+export type ListRolesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListRolesError = ListRolesErrors[keyof ListRolesErrors];
+
+export type ListRolesResponses = {
+    /**
+     * Response Listroles
+     *
+     * Successful Response
+     */
+    200: Array<RoleRead>;
+};
+
+export type ListRolesResponse = ListRolesResponses[keyof ListRolesResponses];
+
+export type CreateRoleData = {
+    body: RoleCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/roles';
+};
+
+export type CreateRoleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateRoleError = CreateRoleErrors[keyof CreateRoleErrors];
+
+export type CreateRoleResponses = {
+    /**
+     * Successful Response
+     */
+    201: RoleRead;
+};
+
+export type CreateRoleResponse = CreateRoleResponses[keyof CreateRoleResponses];
+
+export type DeleteRoleData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * Role Id
+         */
+        role_id: string;
+    };
+    query?: never;
+    url: '/api/roles/{role_id}';
+};
+
+export type DeleteRoleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteRoleError = DeleteRoleErrors[keyof DeleteRoleErrors];
+
+export type DeleteRoleResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteRoleResponse = DeleteRoleResponses[keyof DeleteRoleResponses];
+
+export type UpdateRoleData = {
+    body: RoleUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        Authorization?: string | null;
+    };
+    path: {
+        /**
+         * Role Id
+         */
+        role_id: string;
+    };
+    query?: never;
+    url: '/api/roles/{role_id}';
+};
+
+export type UpdateRoleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateRoleError = UpdateRoleErrors[keyof UpdateRoleErrors];
+
+export type UpdateRoleResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoleRead;
+};
+
+export type UpdateRoleResponse = UpdateRoleResponses[keyof UpdateRoleResponses];

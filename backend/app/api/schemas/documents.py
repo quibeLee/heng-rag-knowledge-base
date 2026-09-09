@@ -1,15 +1,22 @@
+"""文档相关请求 / 响应模型。"""
+
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field
 
 # 与 app.db.models.DocumentStatus 同步；用 Literal 让前端 openapi-typescript
 # 生成精确的字面量联合类型，而不是宽 string
 DocumentStatusValue = Literal["uploading", "parsing", "indexing", "ready", "failed"]
 
+# chunk 列表里只回截断后的摘要，避免长 chunk 撑爆响应；查看完整内容走详情接口
+_CONTENT_EXCERPT_LIMIT = 100
+
 
 class DocumentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     name: str
     file_hash: str
@@ -17,6 +24,10 @@ class DocumentRead(BaseModel):
     size: int
     status: DocumentStatusValue
     error_message: str | None = None
+    # 空数组视为"公开"；非空数组与用户有效权限标签做重叠匹配
+    permission_tags: list[str] = Field(default_factory=list)
+    # 上传者 user_id；用户被硬删后置 None
+    created_by: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -28,12 +39,15 @@ class DocumentListResponse(BaseModel):
     page_size: int = Field(ge=1, le=100)
 
 
-# chunk 列表里只回截断后的摘要，避免长 chunk 撑爆响应；查看完整内容走详情接口
-_CONTENT_EXCERPT_LIMIT = 100
+class DocumentPermissionTagsUpdate(BaseModel):
+    """admin 改文档可见性标签的请求体。"""
+
+    permission_tags: list[str] = Field(default_factory=list)
 
 
 class DocumentChunkRead(BaseModel):
     """chunk 列表项。content_excerpt 已在 API 层截断到固定长度。"""
+
     id: UUID
     chunk_index: int
     page_no: int | None = None
@@ -60,7 +74,8 @@ class DocumentChunkRead(BaseModel):
 
 
 class DocumentChunkStats(BaseModel):
-    """切分统计：直观看到 chunk_size / overlap 配置的实际效果。"""
+    """切分统计：展示 chunk_size / overlap 配置对切分结果的影响。"""
+
     total: int
     avg_length: int
     min_length: int
@@ -77,7 +92,9 @@ class DocumentChunkListResponse(BaseModel):
 
 class DocumentChunkDetail(BaseModel):
     """chunk 详情：返回完整 content。"""
+
     model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     document_id: UUID
     chunk_index: int

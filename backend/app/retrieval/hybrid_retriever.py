@@ -8,6 +8,9 @@
 """
 import asyncio
 from uuid import UUID
+
+from langsmith import traceable
+
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.session import AsyncSessionLocal
@@ -25,19 +28,21 @@ class HybridRetriever:
     - 检索过程纯只读，与调用方的写事务（落库 user / assistant 消息）天然解耦
     """
 
+    @traceable(name="HybridRetriever.search", run_type="retriever")
     async def search(
             self,
             query: str,
             *,
             recall_top_k: int,
             final_top_k: int,
+            permission_tags: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         """两路并发召回 + RRF 融合 + 取 final Top-K。
         任一路异常都退化为另一路结果，避免一处抖动阻断整个问答。
         """
         vector_hits, keyword_hits = await asyncio.gather(
-            self._safe_search(VectorRetriever, query, recall_top_k, "vector"),
-            self._safe_search(KeywordRetriever, query, recall_top_k, "keyword"),
+            self._safe_search(VectorRetriever, query, recall_top_k, "vector", permission_tags=permission_tags),
+            self._safe_search(KeywordRetriever, query, recall_top_k, "keyword", permission_tags=permission_tags),
         )
         return rrf_fuse(
             vector_hits=vector_hits,
@@ -52,11 +57,12 @@ class HybridRetriever:
             query: str,
             top_k: int,
             label: str,
+            permission_tags: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         try:
             async with AsyncSessionLocal() as session:
                 retriever = retriever_cls(session)
-                return await retriever.search(query, top_k)
+                return await retriever.search(query, top_k, permission_tags=permission_tags)
         except Exception:
             logger.exception("hybrid retrieve %s 路异常，降级为空结果", label)
             return []

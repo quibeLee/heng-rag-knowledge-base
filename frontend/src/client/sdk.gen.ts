@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type ServerSentEventsResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateConversationData, CreateConversationErrors, CreateConversationResponses, DeleteConversationData, DeleteConversationErrors, DeleteConversationResponses, DeleteDocumentData, DeleteDocumentErrors, DeleteDocumentResponses, DownloadDocumentData, DownloadDocumentErrors, DownloadDocumentResponses, GetAgentGraphMermaidData, GetAgentGraphMermaidResponses, GetConversationData, GetConversationErrors, GetConversationResponses, GetDocumentChunkData, GetDocumentChunkErrors, GetDocumentChunkResponses, GetDocumentData, GetDocumentErrors, GetDocumentResponses, HealthAppData, HealthAppResponses, HealthCosData, HealthCosResponses, HealthDbData, HealthDbResponses, ListConversationsData, ListConversationsErrors, ListConversationsResponses, ListDocumentChunksData, ListDocumentChunksErrors, ListDocumentChunksResponses, ListDocumentsData, ListDocumentsErrors, ListDocumentsResponses, RetryDocumentData, RetryDocumentErrors, RetryDocumentResponses, StreamChatData, StreamChatErrors, StreamChatResponses, UploadDocumentData, UploadDocumentErrors, UploadDocumentResponses } from './types.gen';
+import type { AssignUserRolesData, AssignUserRolesErrors, AssignUserRolesResponses, CreateConversationData, CreateConversationErrors, CreateConversationResponses, CreateEvaluationRunData, CreateEvaluationRunErrors, CreateEvaluationRunResponses, CreateRoleData, CreateRoleErrors, CreateRoleResponses, CreateUserData, CreateUserErrors, CreateUserResponses, DeleteConversationData, DeleteConversationErrors, DeleteConversationResponses, DeleteDocumentData, DeleteDocumentErrors, DeleteDocumentResponses, DeleteEvaluationRunData, DeleteEvaluationRunErrors, DeleteEvaluationRunResponses, DeleteRoleData, DeleteRoleErrors, DeleteRoleResponses, DeleteUserData, DeleteUserErrors, DeleteUserResponses, DownloadDocumentData, DownloadDocumentErrors, DownloadDocumentResponses, GetAgentGraphMermaidData, GetAgentGraphMermaidResponses, GetConversationData, GetConversationErrors, GetConversationResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetDocumentChunkData, GetDocumentChunkErrors, GetDocumentChunkResponses, GetDocumentData, GetDocumentErrors, GetDocumentResponses, GetEvaluationItemData, GetEvaluationItemErrors, GetEvaluationItemResponses, GetEvaluationRunData, GetEvaluationRunErrors, GetEvaluationRunResponses, HealthAppData, HealthAppResponses, HealthCosData, HealthCosResponses, HealthDbData, HealthDbResponses, ListConversationsData, ListConversationsErrors, ListConversationsResponses, ListDocumentChunksData, ListDocumentChunksErrors, ListDocumentChunksResponses, ListDocumentsData, ListDocumentsErrors, ListDocumentsResponses, ListEvaluationDatasetsData, ListEvaluationDatasetsErrors, ListEvaluationDatasetsResponses, ListEvaluationItemsData, ListEvaluationItemsErrors, ListEvaluationItemsResponses, ListEvaluationRunsData, ListEvaluationRunsErrors, ListEvaluationRunsResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, RetryDocumentData, RetryDocumentErrors, RetryDocumentResponses, StreamChatData, StreamChatErrors, StreamChatResponses, UpdateDocumentPermissionTagsData, UpdateDocumentPermissionTagsErrors, UpdateDocumentPermissionTagsResponses, UpdateEvaluationItemData, UpdateEvaluationItemErrors, UpdateEvaluationItemResponses, UpdateRoleData, UpdateRoleErrors, UpdateRoleResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses, UploadDocumentData, UploadDocumentErrors, UploadDocumentResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -73,11 +73,25 @@ export const getDocument = <ThrowOnError extends boolean = false>(options: Optio
 export const retryDocument = <ThrowOnError extends boolean = false>(options: Options<RetryDocumentData, ThrowOnError>): RequestResult<RetryDocumentResponses, RetryDocumentErrors, ThrowOnError> => (options.client ?? client).post<RetryDocumentResponses, RetryDocumentErrors, ThrowOnError>({ url: '/api/documents/{document_id}/retry', ...options });
 
 /**
+ * Update Permission Tags
+ */
+export const updateDocumentPermissionTags = <ThrowOnError extends boolean = false>(options: Options<UpdateDocumentPermissionTagsData, ThrowOnError>): RequestResult<UpdateDocumentPermissionTagsResponses, UpdateDocumentPermissionTagsErrors, ThrowOnError> => (options.client ?? client).patch<UpdateDocumentPermissionTagsResponses, UpdateDocumentPermissionTagsErrors, ThrowOnError>({
+    url: '/api/documents/{document_id}/permission-tags',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Download Document
  *
  * 返回文档原始字节。
- * - PDF / HTML / Markdown：可在浏览器内联预览
- * - DOCX：浏览器无法渲染，强制 attachment
+ *
+ * 支持两种认证方式（优先 header）：
+ * - Authorization header（常规 fetch 请求）
+ * - ?token= query 参数（iframe / 浏览器直接打开时无法带 header）
  */
 export const downloadDocument = <ThrowOnError extends boolean = false>(options: Options<DownloadDocumentData, ThrowOnError>): RequestResult<DownloadDocumentResponses, DownloadDocumentErrors, ThrowOnError> => (options.client ?? client).get<DownloadDocumentResponses, DownloadDocumentErrors, ThrowOnError>({ url: '/api/documents/{document_id}/file', ...options });
 
@@ -137,8 +151,161 @@ export const streamChat = <ThrowOnError extends boolean = false>(options: Option
 });
 
 /**
- * Get Agent Graph Mermaid
+ * 输出 Agentic RAG 图结构的 Mermaid 文本，用于直观分析流程。
  *
  * 输出 Agentic RAG 图结构的 Mermaid 文本，用于直观分析流程。
  */
 export const getAgentGraphMermaid = <ThrowOnError extends boolean = false>(options?: Options<GetAgentGraphMermaidData, ThrowOnError>): RequestResult<GetAgentGraphMermaidResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetAgentGraphMermaidResponses, unknown, ThrowOnError>({ url: '/api/agent/graph/mermaid', ...options });
+
+/**
+ * 列出可用评测集（jsonl 文件名 + 条数）
+ */
+export const listEvaluationDatasets = <ThrowOnError extends boolean = false>(options?: Options<ListEvaluationDatasetsData, ThrowOnError>): RequestResult<ListEvaluationDatasetsResponses, ListEvaluationDatasetsErrors, ThrowOnError> => (options?.client ?? client).get<ListEvaluationDatasetsResponses, ListEvaluationDatasetsErrors, ThrowOnError>({ url: '/api/evaluations/datasets', ...options });
+
+/**
+ * 按创建时间倒序分页列出评测 run
+ */
+export const listEvaluationRuns = <ThrowOnError extends boolean = false>(options?: Options<ListEvaluationRunsData, ThrowOnError>): RequestResult<ListEvaluationRunsResponses, ListEvaluationRunsErrors, ThrowOnError> => (options?.client ?? client).get<ListEvaluationRunsResponses, ListEvaluationRunsErrors, ThrowOnError>({ url: '/api/evaluations/runs', ...options });
+
+/**
+ * 创建评测 run 并通过 BackgroundTasks 异步执行
+ */
+export const createEvaluationRun = <ThrowOnError extends boolean = false>(options: Options<CreateEvaluationRunData, ThrowOnError>): RequestResult<CreateEvaluationRunResponses, CreateEvaluationRunErrors, ThrowOnError> => (options.client ?? client).post<CreateEvaluationRunResponses, CreateEvaluationRunErrors, ThrowOnError>({
+    url: '/api/evaluations/runs',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Evaluation Run
+ */
+export const deleteEvaluationRun = <ThrowOnError extends boolean = false>(options: Options<DeleteEvaluationRunData, ThrowOnError>): RequestResult<DeleteEvaluationRunResponses, DeleteEvaluationRunErrors, ThrowOnError> => (options.client ?? client).delete<DeleteEvaluationRunResponses, DeleteEvaluationRunErrors, ThrowOnError>({ url: '/api/evaluations/runs/{run_id}', ...options });
+
+/**
+ * Get Evaluation Run
+ */
+export const getEvaluationRun = <ThrowOnError extends boolean = false>(options: Options<GetEvaluationRunData, ThrowOnError>): RequestResult<GetEvaluationRunResponses, GetEvaluationRunErrors, ThrowOnError> => (options.client ?? client).get<GetEvaluationRunResponses, GetEvaluationRunErrors, ThrowOnError>({ url: '/api/evaluations/runs/{run_id}', ...options });
+
+/**
+ * 分页列出 run 下的 case，支持仅看 Bad Case 与按归因筛选
+ */
+export const listEvaluationItems = <ThrowOnError extends boolean = false>(options: Options<ListEvaluationItemsData, ThrowOnError>): RequestResult<ListEvaluationItemsResponses, ListEvaluationItemsErrors, ThrowOnError> => (options.client ?? client).get<ListEvaluationItemsResponses, ListEvaluationItemsErrors, ThrowOnError>({ url: '/api/evaluations/runs/{run_id}/items', ...options });
+
+/**
+ * Get Evaluation Item
+ */
+export const getEvaluationItem = <ThrowOnError extends boolean = false>(options: Options<GetEvaluationItemData, ThrowOnError>): RequestResult<GetEvaluationItemResponses, GetEvaluationItemErrors, ThrowOnError> => (options.client ?? client).get<GetEvaluationItemResponses, GetEvaluationItemErrors, ThrowOnError>({ url: '/api/evaluations/items/{item_id}', ...options });
+
+/**
+ * 人工覆盖 Bad Case 归因 / 备注
+ */
+export const updateEvaluationItem = <ThrowOnError extends boolean = false>(options: Options<UpdateEvaluationItemData, ThrowOnError>): RequestResult<UpdateEvaluationItemResponses, UpdateEvaluationItemErrors, ThrowOnError> => (options.client ?? client).patch<UpdateEvaluationItemResponses, UpdateEvaluationItemErrors, ThrowOnError>({
+    url: '/api/evaluations/items/{item_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Login
+ */
+export const login = <ThrowOnError extends boolean = false>(options: Options<LoginData, ThrowOnError>): RequestResult<LoginResponses, LoginErrors, ThrowOnError> => (options.client ?? client).post<LoginResponses, LoginErrors, ThrowOnError>({
+    url: '/api/auth/login',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Me
+ *
+ * 前端启动时 / 路由切换时拉一次，保证角色变更后立即生效。
+ */
+export const getCurrentUser = <ThrowOnError extends boolean = false>(options?: Options<GetCurrentUserData, ThrowOnError>): RequestResult<GetCurrentUserResponses, GetCurrentUserErrors, ThrowOnError> => (options?.client ?? client).get<GetCurrentUserResponses, GetCurrentUserErrors, ThrowOnError>({ url: '/api/auth/me', ...options });
+
+/**
+ * List Users
+ */
+export const listUsers = <ThrowOnError extends boolean = false>(options?: Options<ListUsersData, ThrowOnError>): RequestResult<ListUsersResponses, ListUsersErrors, ThrowOnError> => (options?.client ?? client).get<ListUsersResponses, ListUsersErrors, ThrowOnError>({ url: '/api/users', ...options });
+
+/**
+ * Create User
+ */
+export const createUser = <ThrowOnError extends boolean = false>(options: Options<CreateUserData, ThrowOnError>): RequestResult<CreateUserResponses, CreateUserErrors, ThrowOnError> => (options.client ?? client).post<CreateUserResponses, CreateUserErrors, ThrowOnError>({
+    url: '/api/users',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete User
+ */
+export const deleteUser = <ThrowOnError extends boolean = false>(options: Options<DeleteUserData, ThrowOnError>): RequestResult<DeleteUserResponses, DeleteUserErrors, ThrowOnError> => (options.client ?? client).delete<DeleteUserResponses, DeleteUserErrors, ThrowOnError>({ url: '/api/users/{user_id}', ...options });
+
+/**
+ * Update User
+ */
+export const updateUser = <ThrowOnError extends boolean = false>(options: Options<UpdateUserData, ThrowOnError>): RequestResult<UpdateUserResponses, UpdateUserErrors, ThrowOnError> => (options.client ?? client).patch<UpdateUserResponses, UpdateUserErrors, ThrowOnError>({
+    url: '/api/users/{user_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Assign User Roles
+ */
+export const assignUserRoles = <ThrowOnError extends boolean = false>(options: Options<AssignUserRolesData, ThrowOnError>): RequestResult<AssignUserRolesResponses, AssignUserRolesErrors, ThrowOnError> => (options.client ?? client).put<AssignUserRolesResponses, AssignUserRolesErrors, ThrowOnError>({
+    url: '/api/users/{user_id}/roles',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Roles
+ */
+export const listRoles = <ThrowOnError extends boolean = false>(options?: Options<ListRolesData, ThrowOnError>): RequestResult<ListRolesResponses, ListRolesErrors, ThrowOnError> => (options?.client ?? client).get<ListRolesResponses, ListRolesErrors, ThrowOnError>({ url: '/api/roles', ...options });
+
+/**
+ * Create Role
+ */
+export const createRole = <ThrowOnError extends boolean = false>(options: Options<CreateRoleData, ThrowOnError>): RequestResult<CreateRoleResponses, CreateRoleErrors, ThrowOnError> => (options.client ?? client).post<CreateRoleResponses, CreateRoleErrors, ThrowOnError>({
+    url: '/api/roles',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Role
+ */
+export const deleteRole = <ThrowOnError extends boolean = false>(options: Options<DeleteRoleData, ThrowOnError>): RequestResult<DeleteRoleResponses, DeleteRoleErrors, ThrowOnError> => (options.client ?? client).delete<DeleteRoleResponses, DeleteRoleErrors, ThrowOnError>({ url: '/api/roles/{role_id}', ...options });
+
+/**
+ * Update Role
+ */
+export const updateRole = <ThrowOnError extends boolean = false>(options: Options<UpdateRoleData, ThrowOnError>): RequestResult<UpdateRoleResponses, UpdateRoleErrors, ThrowOnError> => (options.client ?? client).patch<UpdateRoleResponses, UpdateRoleErrors, ThrowOnError>({
+    url: '/api/roles/{role_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});

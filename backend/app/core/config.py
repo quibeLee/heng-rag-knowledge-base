@@ -96,6 +96,33 @@ class Settings(BaseSettings):
     # ===== 答案校验=====
     # 关掉后跳过 verify_answer 调用，方便对比有/无引用支撑校验的效果
     verify_answer_enabled: bool = True
+    # ===== LangSmith 可观测性 =====
+    # 关掉后 @traceable / LangChain 自动 trace 全部降级为 no-op，trace_id 返回 None
+    # 开发期不填 LangSmith key 不影响项目正常跑
+    langsmith_tracing: bool = False
+    langsmith_api_key: str = ""
+    langsmith_project: str = "rag-knowledge-base"
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    # LangSmith UI 私有 URL 前缀，形如 https://smith.langchain.com/o/{org}/projects/p/{project}
+    # 包含 workspace/org 信息所以是私有的，配置后才下发跳转链接给前端
+    langsmith_run_url_prefix: str = ""
+
+    # ===== 认证 =====
+    # JWT 签名密钥；为空时启动期打 ERROR 警告但不阻断
+    # 生产部署务必改成足够长的随机串
+    jwt_secret: str = ""
+    jwt_algorithm: str = "HS256"
+    # token 默认 24 小时过期
+    jwt_expire_minutes: int = 1440
+    # 首次启动种子管理员账号；库内已有用户时跳过
+    default_admin_username: str = "admin"
+    default_admin_password: str = "admin"
+    default_admin_display_name: str = "管理员"
+
+    @property
+    def observability_enabled(self) -> bool:
+        """LangSmith 实际生效条件：开关打开 + key 已配置。任一缺失都视为关闭。"""
+        return bool(self.langsmith_tracing and self.langsmith_api_key)
 
     @property
     def effective_rerank_api_key(self) -> str:

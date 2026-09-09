@@ -6,6 +6,7 @@ import {
   Card,
   Descriptions,
   Empty,
+  Form,
   List,
   Modal,
   Pagination,
@@ -21,23 +22,28 @@ import {
   ArrowLeftOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  EditOutlined,
   EyeOutlined,
   RedoOutlined,
 } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { gfmComponents } from '@/components/markdownComponents'
 import {
   deleteDocument,
   getDocument,
   getDocumentChunk,
   listDocumentChunks,
   retryDocument,
+  updateDocumentPermissionTags,
 } from '@/client/sdk.gen'
 import type {
   DocumentChunkDetail,
   DocumentChunkRead,
   DocumentRead,
 } from '@/client/types.gen'
+import { PermissionTagsField } from '@/components/PermissionTagsField'
 import {
   getStatusColor,
   getStatusLabel,
@@ -50,9 +56,7 @@ import {
   isMarkdownMime,
   isPdfMime,
 } from '@/utils/documentFile'
-
-import remarkGfm from 'remark-gfm'
-import { gfmComponents } from '@/components/markdownComponents'
+import { useAuthStore } from '@/stores/authStore'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -78,7 +82,11 @@ function MarkdownPreview({ url }: { url: string }) {
     let cancelled = false
     setContent(null)
     setError(null)
-    fetch(url)
+    fetch(url, {
+      headers: useAuthStore.getState().token
+        ? { Authorization: `Bearer ${useAuthStore.getState().token!}` }
+        : undefined,
+    })
       .then(async (r) => {
         if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
         return r.text()
@@ -98,7 +106,9 @@ function MarkdownPreview({ url }: { url: string }) {
   if (content === null) return <Skeleton active />
   return (
     <div style={{ padding: 16, maxHeight: 600, overflow: 'auto' }}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={gfmComponents}>{content}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={gfmComponents}>
+      {content}
+    </ReactMarkdown>
     </div>
   )
 }
@@ -107,9 +117,11 @@ export function DocumentDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const isAdmin = useAuthStore((s) => Boolean(s.user?.isAdmin))
 
   const [chunkPage, setChunkPage] = useState(1)
   const [activeChunkId, setActiveChunkId] = useState<string | null>(null)
+  const [tagsModalOpen, setTagsModalOpen] = useState(false)
 
   const docQuery = useQuery({
     queryKey: ['documents', 'detail', id],
@@ -136,7 +148,6 @@ export function DocumentDetailPage() {
       })
       return res.data!
     },
-    // 仅 ready 时拉取；非 ready 状态下也没有完整 chunks
     enabled: !!id && doc?.status === 'ready',
   })
 
@@ -170,6 +181,21 @@ export function DocumentDetailPage() {
       message.success('文档已删除')
       queryClient.invalidateQueries({ queryKey: ['documents'] })
       navigate('/documents')
+    },
+  })
+
+  const tagsMutation = useMutation({
+    mutationFn: async (tags: string[]) => {
+      const res = await updateDocumentPermissionTags({
+        path: { document_id: id },
+        body: { permission_tags: tags },
+      })
+      return res.data!
+    },
+    onSuccess: () => {
+      message.success('权限标签已更新')
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      setTagsModalOpen(false)
     },
   })
 
@@ -207,7 +233,7 @@ export function DocumentDetailPage() {
             新窗口打开
           </Button>
         ) : null}
-        {canRetry ? (
+        {isAdmin && canRetry ? (
           <Button
             icon={<RedoOutlined />}
             loading={retryMutation.isPending}
@@ -216,24 +242,26 @@ export function DocumentDetailPage() {
             重试解析
           </Button>
         ) : null}
-        <Popconfirm
-          title="确认删除该文档？"
-          description="将同时删除文档内容、所有切片以及云端原文件，无法恢复。"
-          okText="删除"
-          okButtonProps={{ danger: true }}
-          cancelText="取消"
-          disabled={!canDelete}
-          onConfirm={() => deleteMutation.mutate()}
-        >
-          <Button
-            danger
-            icon={<DeleteOutlined />}
+        {isAdmin ? (
+          <Popconfirm
+            title="确认删除该文档？"
+            description="将同时删除文档内容、所有切片以及云端原文件，无法恢复。"
+            okText="删除"
+            okButtonProps={{ danger: true }}
+            cancelText="取消"
             disabled={!canDelete}
-            loading={deleteMutation.isPending}
+            onConfirm={() => deleteMutation.mutate()}
           >
-            删除
-          </Button>
-        </Popconfirm>
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              disabled={!canDelete}
+              loading={deleteMutation.isPending}
+            >
+              删除
+            </Button>
+          </Popconfirm>
+        ) : null}
       </Space>
 
       <Title level={3} style={{ marginBottom: 16 }}>
@@ -258,6 +286,29 @@ export function DocumentDetailPage() {
         <Descriptions.Item label="文件 hash">{doc.file_hash}</Descriptions.Item>
         <Descriptions.Item label="MIME 类型">{doc.mime_type}</Descriptions.Item>
         <Descriptions.Item label="大小">{formatSize(doc.size)}</Descriptions.Item>
+        <Descriptions.Item label="权限标签">
+          <Space size={6} wrap>
+            {(doc.permission_tags ?? []).length === 0 ? (
+              <Tag>公开</Tag>
+            ) : (
+              (doc.permission_tags ?? []).map((t) => (
+                <Tag color={t === '*' ? 'gold' : 'blue'} key={t}>
+                  {t}
+                </Tag>
+              ))
+            )}
+            {isAdmin ? (
+              <Button
+                size="small"
+                type="link"
+                icon={<EditOutlined />}
+                onClick={() => setTagsModalOpen(true)}
+              >
+                编辑
+              </Button>
+            ) : null}
+          </Space>
+        </Descriptions.Item>
         <Descriptions.Item label="上传时间">
           {new Date(doc.created_at).toLocaleString('zh-CN')}
         </Descriptions.Item>
@@ -293,7 +344,62 @@ export function DocumentDetailPage() {
           <ChunkDetailBody chunk={chunkDetailQuery.data} />
         ) : null}
       </Modal>
+
+      {isAdmin ? (
+        <EditTagsModal
+          open={tagsModalOpen}
+          initial={doc.permission_tags ?? []}
+          loading={tagsMutation.isPending}
+          onCancel={() => setTagsModalOpen(false)}
+          onSubmit={(tags) => tagsMutation.mutate(tags)}
+        />
+      ) : null}
     </div>
+  )
+}
+
+function EditTagsModal({
+  open,
+  initial,
+  loading,
+  onCancel,
+  onSubmit,
+}: {
+  open: boolean
+  initial: string[]
+  loading: boolean
+  onCancel: () => void
+  onSubmit: (tags: string[]) => void
+}) {
+  const [form] = Form.useForm<{ permission_tags: string[] }>()
+  useEffect(() => {
+    if (open) {
+      form.setFieldsValue({ permission_tags: initial })
+    }
+  }, [open, initial, form])
+  return (
+    <Modal
+      title="编辑权限标签"
+      open={open}
+      onCancel={onCancel}
+      onOk={() => form.submit()}
+      confirmLoading={loading}
+      destroyOnHidden
+    >
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={(values) => onSubmit(values.permission_tags ?? [])}
+      >
+        <Form.Item
+          name="permission_tags"
+          label="权限标签"
+          extra="留空视为公开（所有登录用户可见）"
+        >
+          <PermissionTagsField />
+        </Form.Item>
+      </Form>
+    </Modal>
   )
 }
 
@@ -352,55 +458,58 @@ function ChunksSection({
   onPickChunk: (id: string) => void
 }) {
   if (docStatus !== 'ready') {
-    return <Empty description="等待入库完成后展示切分结果" />
+    return (
+      <Empty
+        description={`当前状态：${getStatusLabel(docStatus)}，切分结果就绪后将自动展示`}
+      />
+    )
   }
-  if (chunksQuery.isLoading || !chunksQuery.data) {
-    return <Skeleton active />
-  }
-  const { items, total, stats } = chunksQuery.data
-  if (total === 0) {
-    return <Empty description="没有 chunk" />
-  }
+  if (chunksQuery.isLoading) return <Skeleton active />
+  const data = chunksQuery.data
+  if (!data) return <Empty />
+
+  const { items, total, stats } = data
   return (
     <>
       {stats ? (
-        <Space size="large" style={{ marginBottom: 16 }} wrap>
-          <Statistic title="切片总数" value={stats.total} />
-          <Statistic title="平均字符数" value={stats.avg_length} />
-          <Statistic title="最短" value={stats.min_length} />
-          <Statistic title="最长" value={stats.max_length} />
+        <Space size="large" wrap style={{ marginBottom: 16 }}>
+          <Statistic title="Chunk 数量" value={stats.total} />
+          <Statistic title="平均长度" value={stats.avg_length} suffix="字符" />
+          <Statistic title="最短" value={stats.min_length} suffix="字符" />
+          <Statistic title="最长" value={stats.max_length} suffix="字符" />
         </Space>
       ) : null}
       <List<DocumentChunkRead>
-        dataSource={items}
         bordered
+        dataSource={items}
         renderItem={(chunk) => (
           <List.Item
-            style={{ cursor: 'pointer' }}
-            onClick={() => onPickChunk(chunk.id)}
+            actions={[
+              <Button
+                key="detail"
+                type="link"
+                onClick={() => onPickChunk(chunk.id)}
+              >
+                查看完整内容
+              </Button>,
+            ]}
           >
             <List.Item.Meta
               title={
-                <Space wrap>
-                  <Text strong>#{chunk.chunk_index}</Text>
-                  {chunk.page_no != null ? (
-                    <Tag color="blue">第 {chunk.page_no} 页</Tag>
-                  ) : null}
+                <Space>
+                  <Text>#{chunk.chunk_index}</Text>
+                  {chunk.page_no ? <Tag>页 {chunk.page_no}</Tag> : null}
                   {chunk.section_path ? (
-                    <Text type="secondary" ellipsis style={{ maxWidth: 320 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
                       {chunk.section_path}
                     </Text>
                   ) : null}
-                  <Tag>字符数 {chunk.char_count}</Tag>
-                  <Text type="secondary" code>
-                    {chunk.chunk_hash.slice(0, 8)}
-                  </Text>
                 </Space>
               }
               description={
                 <Paragraph
-                  type="secondary"
-                  style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
+                  style={{ marginBottom: 0, color: 'rgba(0,0,0,.65)' }}
+                  ellipsis={{ rows: 2 }}
                 >
                   {chunk.content_excerpt}
                 </Paragraph>
@@ -409,46 +518,41 @@ function ChunksSection({
           </List.Item>
         )}
       />
-      <Pagination
-        style={{ marginTop: 16, textAlign: 'right' }}
-        align="end"
-        current={page}
-        pageSize={CHUNK_PAGE_SIZE}
-        total={total}
-        showSizeChanger={false}
-        onChange={onPageChange}
-      />
+      <div style={{ marginTop: 12, textAlign: 'right' }}>
+        <Pagination
+          current={page}
+          pageSize={CHUNK_PAGE_SIZE}
+          total={total}
+          showSizeChanger={false}
+          onChange={onPageChange}
+        />
+      </div>
     </>
   )
 }
 
 function ChunkDetailBody({ chunk }: { chunk: DocumentChunkDetail }) {
   return (
-    <>
-      <Space wrap style={{ marginBottom: 12 }}>
-        <Text strong>#{chunk.chunk_index}</Text>
-        {chunk.page_no != null ? <Tag color="blue">第 {chunk.page_no} 页</Tag> : null}
-        <Tag>字符数 {chunk.char_count}</Tag>
-        <Text type="secondary" code>
-          {chunk.chunk_hash}
-        </Text>
+    <div>
+      <Space style={{ marginBottom: 12 }} wrap>
+        <Tag>chunk_index: {chunk.chunk_index}</Tag>
+        {chunk.page_no ? <Tag>页 {chunk.page_no}</Tag> : null}
+        {chunk.section_path ? <Tag>{chunk.section_path}</Tag> : null}
+        <Tag>{chunk.char_count} 字符</Tag>
+        <Text type="secondary">hash: {chunk.chunk_hash}</Text>
       </Space>
-      {chunk.section_path ? (
-        <Paragraph type="secondary">{chunk.section_path}</Paragraph>
-      ) : null}
-      <pre
+      <Paragraph
         style={{
-          background: '#fafafa',
-          border: '1px solid #f0f0f0',
-          padding: 12,
+          whiteSpace: 'pre-wrap',
           maxHeight: 480,
           overflow: 'auto',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
+          padding: 12,
+          background: '#fafafa',
+          borderRadius: 4,
         }}
       >
         {chunk.content}
-      </pre>
-    </>
+      </Paragraph>
+    </div>
   )
 }

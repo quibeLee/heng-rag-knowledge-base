@@ -10,6 +10,7 @@ router = APIRouter(prefix="/agent", tags=["agent"])
     "/graph/mermaid",
     response_model=GraphMermaidRead,
     operation_id="getAgentGraphMermaid",
+    summary="输出 Agentic RAG 图结构的 Mermaid 文本，用于直观分析流程。",
 )
 async def get_agent_graph_mermaid() -> GraphMermaidRead:
     """输出 Agentic RAG 图结构的 Mermaid 文本，用于直观分析流程。"""
