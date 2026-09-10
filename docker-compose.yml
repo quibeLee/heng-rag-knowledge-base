@@ -2,7 +2,7 @@ services:
   postgres:
     # 直接使用 pgvector/pgvector 镜像， CREATE EXTENSION vector 时无需替换镜像
     # 自定义镜像：在 pgvector/pgvector:pg16 之上叠加 zhparser，
-    # 一次构建同时支持 pgvector + 中文全文检索（第 6 章）。
+    # 一次构建同时支持 pgvector + 中文全文检索。
     build:
       context: .
       dockerfile: postgres.Dockerfile
@@ -24,7 +24,7 @@ services:
       retries: 10
 
   redis:
-    # 第 12 章引入：语义缓存、滑动窗口限流、Celery broker/backend 共用同一个 Redis 实例。
+    # 语义缓存、滑动窗口限流、Celery broker/backend 共用同一个 Redis 实例。
     # 使用 redis-stack-server 镜像（命令完全兼容 redis:7）：多带 RediSearch 模块，
     # 让语义缓存可以通过 RedisVL 的 KNN 向量索引检索，避免应用层全量扫描。
     image: redis/redis-stack-server:7.4.0-v0
