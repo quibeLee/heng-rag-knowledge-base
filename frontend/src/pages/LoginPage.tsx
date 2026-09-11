@@ -51,7 +51,7 @@ export function LoginPage() {
     >
       <Card style={{ width: 360 }} variant="borderless">
         <Typography.Title level={3} style={{ textAlign: 'center', marginBottom: 24 }}>
-          RAG 知识库
+          企业知识库
         </Typography.Title>
         <Form<LoginFormValues>
           layout="vertical"

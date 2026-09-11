@@ -69,7 +69,10 @@ class UserService:
                 raise ValidationError("密码长度至少 4 位")
             user.password_hash = hash_password(password)
         await self.session.commit()
-        await self.session.refresh(user, attribute_names=["roles"])
+        # updated_at 是服务端 onupdate 生成：发生过 UPDATE 后该属性处于过期态，
+        # 只 refresh roles 不会恢复它，同步侧（pydantic 序列化）一读就触发
+        # 懒加载报 MissingGreenlet → 500。必须整行刷新，roles 由 selectin 一并带回。
+        await self.session.refresh(user)
         return user
 
     async def set_roles(self, user_id: UUID, role_ids: Sequence[UUID]) -> User:

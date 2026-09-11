@@ -77,7 +77,7 @@ export function BasicLayout() {
             fontSize: 16,
           }}
         >
-          RAG 知识库
+          企业知识库
         </div>
         <Menu
           theme="dark"
@@ -98,7 +98,7 @@ export function BasicLayout() {
             fontSize: 16,
           }}
         >
-          <span>企业级 RAG 知识库</span>
+          <span>企业知识库</span>
           <UserMenu />
         </Header>
         <Content style={{ margin: 24 }}>
